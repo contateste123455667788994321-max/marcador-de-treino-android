@@ -66,6 +66,7 @@ function open(mode){
  else view='run';
  opened=true;overlay.hidden=false;document.body.style.overflow='hidden';
  render();
+ if(view==='run'&&!state.active)promptNative('locate');
 }
 function close(){opened=false;$('mt-run-overlay').hidden=true;document.body.style.overflow='';disposeMap()}
 function disposeMap(){if(map){try{map.remove()}catch{}map=null;routeLine=null;positionMarker=null}}
@@ -99,8 +100,8 @@ function update(){
  const pace=$('mt-run-pace');if(pace)pace.textContent=paceLabel(state.paceSecKm);
  const cal=$('mt-run-calories');if(cal)cal.textContent=Math.round(state.calories||0);
  const gps=$('mt-run-gps-text'),dot=$('mt-run-gps-dot');
- if(gps)gps.textContent=!state.gpsEnabled?'Ative o GPS':!state.permissionGranted?'Permissão necessária':state.gpsFix?'GPS conectado':'Buscando sinal GPS';
- if(dot)dot.classList.toggle('good',!!state.gpsFix);
+ if(gps)gps.textContent=!state.gpsEnabled?'Ative o GPS':!state.permissionGranted?'Permissão necessária':state.gpsFix?'GPS conectado':Number.isFinite(state.previewLat)?'Localização obtida':'Buscando sinal GPS';
+ if(dot)dot.classList.toggle('good',!!state.gpsFix||Number.isFinite(state.previewLat));
 }
 function ensureLeaflet(){
  if(window.L)return Promise.resolve(window.L);
@@ -119,7 +120,7 @@ function ensureLeaflet(){
 async function ensureMap(){
  if(map||view==='history'||!opened||mapUnavailable)return;
  const route=Array.isArray(state.route)?state.route:[];
- if(!state.gpsFix&&!route.length)return;
+ if(!state.gpsFix&&!route.length&&!Number.isFinite(state.previewLat))return;
  try{
   const L=await ensureLeaflet();
   if(!opened||view==='history'||map||!$('mt-run-map'))return;
@@ -136,15 +137,16 @@ async function ensureMap(){
 function renderMapRoute(){
  if(!opened||view==='history')return;
  const route=Array.isArray(state.route)?state.route:[];
- if(!route.length)return;
  const coords=route.filter(x=>Array.isArray(x)&&Number.isFinite(x[0])&&Number.isFinite(x[1])).map(x=>[x[0],x[1]]);
- if(!coords.length)return;
- const empty=$('mt-run-map-empty');if(empty)empty.style.display='none';
+ const preview=Number.isFinite(state.previewLat)&&Number.isFinite(state.previewLon)?[state.previewLat,state.previewLon]:null;
+ const position=coords.length?coords[coords.length-1]:preview;
+ if(!position)return;
  if(!map){ensureMap();return}
+ const empty=$('mt-run-map-empty');if(empty)empty.style.display='none';
  if(routeLine)routeLine.setLatLngs(coords);
- if(positionMarker)positionMarker.setLatLng(coords[coords.length-1]);
- if(!map._mtCentered){map._mtCentered=true;map.setView(coords[coords.length-1],17)}
- else if(state.running)map.panTo(coords[coords.length-1],{animate:false});
+ if(positionMarker)positionMarker.setLatLng(position);
+ if(!map._mtCentered){map._mtCentered=true;map.setView(position,17)}
+ else if(state.running&&coords.length)map.panTo(position,{animate:false});
 }
 function decorateHome(){
  const steps=document.querySelector('.steps-home');
