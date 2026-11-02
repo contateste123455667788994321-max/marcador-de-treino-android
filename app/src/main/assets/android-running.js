@@ -18,7 +18,9 @@ const style=document.createElement('style');style.id='mt-android-run-css';style.
 let state={active:false,running:false,durationMs:0,distanceMeters:0,calories:0,paceSecKm:0,route:[],gpsFix:false,gpsEnabled:false,permissionGranted:false};
 let history={history:[],bestDistance:0,bestDuration:0,bestPace:0};
 let view='run',opened=false,lastFinished=null,elapsedBase=0,lastElapsedTick=Date.now();
-let leaflet=null,map=null,routeLine=null,positionMarker=null,mapUnavailable=false,mapLoading=false;
+let leaflet=null,map=null,routeLine=null,ghostLine=null,positionMarker=null,mapUnavailable=false,mapLoading=false;
+let replayRun=null,replayPlaying=false,replayProgress=0,replaySpeed=1,replayFrame=0,replayLastTick=0,cloudLoading=false;
+const replayDuration=22000;
 function promptNative(command){
  try{
   const s=window.prompt('mt-run:'+command,'');
@@ -32,7 +34,70 @@ function distanceLabel(m){return (Math.max(0,m||0)/1000).toFixed(2)}
 function readHistory(){const h=promptNative('history');if(h&&Array.isArray(h.history))history=h;return history}
 function poll(){const s=promptNative('state');if(s&&typeof s==='object'&&!s.error){state=s;elapsedBase=s.durationMs||0;lastElapsedTick=Date.now();update();renderMapRoute()}return state}
 function currentElapsed(){return Math.max(0,(state.durationMs||0)+(state.running?Date.now()-lastElapsedTick:0))}
-function allRuns(){return [...(history.history||[])].reverse()}
+function allRuns(){
+ const list=new Map();
+ for(const r of history.history||[])if(r&&Number(r.startWall)>0)list.set(String(r.startWall),{...r,cloudOnly:false});
+ for(const r of window.MTCloudRuns?.status?.().runs||[]){
+   if(!r||!Number(r.startWall))continue;
+   const key=String(r.startWall);
+   if(list.has(key))list.get(key).backedUp=true;
+   else list.set(key,{...r,cloudOnly:true,backedUp:true});
+ }
+ return [...list.values()].sort((a,b)=>Number(b.startWall)-Number(a.startWall));
+}
+async function openHistory(){
+ readHistory();view='history';render();
+ const cloud=window.MTCloudRuns;
+ if(cloud?.status?.().loggedIn){
+   cloudLoading=true;const note=$('mt-run-cloud-loading');if(note)note.textContent='Atualizando histórico da nuvem...';
+   await cloud.load();cloudLoading=false;
+   if(opened&&view==='history')render();
+ }
+}
+async function openRecordedRun(startWall){
+ const identifier=String(startWall);
+ const run=allRuns().find(r=>String(r.startWall)===identifier);
+ if(!run)return;
+ let complete=run;
+ if(!Array.isArray(run.route)){
+   const cloud=window.MTCloudRuns;
+   if(!cloud?.status?.().loggedIn){alert('Entre na sua conta para recuperar esta corrida da nuvem.');return}
+   const note=$('mt-run-cloud-loading');if(note)note.textContent='Carregando trajeto...';
+   try{complete=await cloud.full(identifier)}catch(e){alert('Não foi possível carregar a rota. Confira a conexão com a internet.');return}
+ }
+ if(!complete)return;
+ replayRun=complete;replayProgress=0;replaySpeed=1;view='replay';
+ stopReplay();render();
+ if(Array.isArray(replayRun.route)&&replayRun.route.length>=2){
+   ensureMap().then(()=>{if(opened&&view==='replay')startReplay()});
+ }
+}
+function stopReplay(){replayPlaying=false;cancelAnimationFrame(replayFrame);replayFrame=0;replayLastTick=0}
+function startReplay(){
+ if(!replayRun)return;
+ if(replayProgress>=1)replayProgress=0;
+ if(replayPlaying)return;
+ replayPlaying=true;replayLastTick=performance.now();renderReplayUI();
+ function tick(t){
+  if(!replayPlaying||view!=='replay'||!opened)return;
+  const elapsed=Math.max(0,Math.min(250,t-replayLastTick));replayLastTick=t;
+  replayProgress=Math.min(1,replayProgress+(elapsed/replayDuration)*replaySpeed);
+  drawReplay();renderReplayUI();
+  if(replayProgress>=1){stopReplay();renderReplayUI();return}
+  replayFrame=requestAnimationFrame(tick);
+ }
+ replayFrame=requestAnimationFrame(tick);
+}
+function toggleReplay(){if(replayPlaying)stopReplay();else startReplay();renderReplayUI()}
+function renderReplayUI(){
+ if(view!=='replay')return;
+ const btn=$('mt-replay-toggle');if(btn){btn.innerHTML=svg(replayPlaying?'pause':'play')+(replayPlaying?' Pausar replay':' Reproduzir replay')}
+ const progress=$('mt-replay-progress');if(progress)progress.value=String(Math.round(replayProgress*1000));
+ const label=$('mt-replay-time');if(label)label.textContent=clockShort(replayDuration*replayProgress/replaySpeed);
+ const header=$('mt-run-time');if(header)header.textContent=msClock((replayRun?.durationMs||0)*replayProgress);
+ const speed=$('mt-replay-speed');if(speed)speed.textContent=replaySpeed+'×';
+}
+
 function historyMarkup(){
  const records=allRuns();
  return '<div class="run-summary-card"><h2>Seus recordes</h2><p>Sua evolução registrada pelo GPS.</p>'+
