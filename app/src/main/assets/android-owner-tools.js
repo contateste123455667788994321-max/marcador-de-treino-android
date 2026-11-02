@@ -135,7 +135,7 @@ async function suggestionDetails(id){
 }
 function clearSuggestions(){
  if(!owner())return;
- const root=document.querySelector('#mt-admin-overlay .mt-admin-panel');if(!root)return;
+ const root=[...document.querySelectorAll('#mt-admin-overlay .mt-admin-panel')].find(p=>p.querySelector('h3')?.textContent==='Sugestões de exercícios');if(!root)return;
  confirmation(root,'Apagar TODAS as sugestões de exercícios recebidas? Esta ação não pode ser desfeita.',async()=>{
   await api('/api/account/admin-dashboard',{action:'clearSuggestions'});window.MTOwnerPanel?.open?.();
  });
