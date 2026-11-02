@@ -29,6 +29,7 @@ else document.querySelector('[data-go="exercises"]')?.click();
 }
 }
 let locked=false,hold=null;
+window.MTAndroidUnlock=()=>{if(!locked)return false;locked=false;checkLock();return true};
 function checkLock(){
 let btn=$('mt-local-lock'),overlay=$('mt-local-lock-overlay');
 if(!btn){
