@@ -199,14 +199,19 @@ function ensureLeaflet(){
 }
 async function ensureMap(){
  if(map||view==='history'||!opened||mapUnavailable)return;
- const route=Array.isArray(state.route)?state.route:[];
- if(!state.gpsFix&&!route.length&&!Number.isFinite(state.previewLat))return;
+ const route=view==='replay'?replayRun?.route:(Array.isArray(state.route)?state.route:[]);
+ if(!Array.isArray(route))return;
+ if(view!=='replay'&&!state.gpsFix&&!route.length&&!Number.isFinite(state.previewLat))return;
+ if(view==='replay'&&route.length===0)return;
  try{
   const L=await ensureLeaflet();
   if(!opened||view==='history'||map||!$('mt-run-map'))return;
   map=L.map('mt-run-map',{zoomControl:false,attributionControl:true,preferCanvas:true});
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> colaboradores'}).addTo(map);
   L.control.zoom({position:'bottomright'}).addTo(map);
+  if(view==='replay'){
+   ghostLine=L.polyline([],{color:'#94b58d',weight:3,opacity:.24,dashArray:'5 8'}).addTo(map);
+  }
   routeLine=L.polyline([],{color:'#a6ff00',weight:5,opacity:.95}).addTo(map);
   const m=L.divIcon({className:'',html:'<div class="run-location-dot"></div>',iconSize:[18,18]});
   positionMarker=L.marker([0,0],{icon:m}).addTo(map);
@@ -214,8 +219,29 @@ async function ensureMap(){
   setTimeout(()=>{if(map)map.invalidateSize()},100);
  }catch(e){mapUnavailable=true;const placeholder=$('mt-run-map-empty');if(placeholder){placeholder.querySelector('small').textContent='Mapa indisponível. O GPS ainda registra a corrida.'}}
 }
+function validRoutePoints(route){
+ return (Array.isArray(route)?route:[]).filter(x=>Array.isArray(x)&&Number.isFinite(Number(x[0]))&&Number.isFinite(Number(x[1]))).map(x=>[Number(x[0]),Number(x[1])]);
+}
+function drawReplay(){
+ if(!opened||view!=='replay'||!replayRun)return;
+ const coords=validRoutePoints(replayRun.route);
+ if(!coords.length)return;
+ if(!map){ensureMap();return}
+ if(ghostLine)ghostLine.setLatLngs(coords);
+ const max=Math.max(0,Math.min(coords.length-1,Math.floor(replayProgress*Math.max(0,coords.length-1))));
+ const partial=coords.slice(0,max+1);
+ if(routeLine)routeLine.setLatLngs(partial);
+ if(positionMarker)positionMarker.setLatLng(coords[max]);
+ const placeholder=$('mt-run-map-empty');if(placeholder)placeholder.style.display='none';
+ if(!map._mtReplayFit){
+   map._mtReplayFit=true;
+   if(coords.length===1)map.setView(coords[0],17);
+   else{try{map.fitBounds(coords,{padding:[24,24],maxZoom:17})}catch(e){map.setView(coords[0],15)}}
+ }
+}
 function renderMapRoute(){
  if(!opened||view==='history')return;
+ if(view==='replay'){drawReplay();return}
  const route=Array.isArray(state.route)?state.route:[];
  const coords=route.filter(x=>Array.isArray(x)&&Number.isFinite(x[0])&&Number.isFinite(x[1])).map(x=>[x[0],x[1]]);
  const preview=Number.isFinite(state.previewLat)&&Number.isFinite(state.previewLon)?[state.previewLat,state.previewLon]:null;
@@ -237,6 +263,7 @@ function decorateHome(){
  steps.insertAdjacentElement('afterend',card);
  card.onclick=()=>{poll();open('run')};
 }
+const replayStyle=document.createElement('style');replayStyle.id='mt-android-replay-css';replayStyle.textContent="\n#mt-run-overlay .run-history-cloud-row{display:flex;align-items:center;justify-content:space-between;gap:5px;margin:5px 14px}\n#mt-run-overlay .run-history-cloud-row .run-h3{margin:10px 0 5px}\n#mt-run-overlay .run-history-cloud-row button{padding:8px 10px;border-radius:11px;border:1px solid #547d34;color:#c6ff97;background:#1b2c19;font-size:11px;font-weight:850}\n#mt-run-overlay .run-history-tap{width:100%;background:none;text-align:left;color:#f4ffef;border-left:0;border-right:0;border-top:0;border-radius:0;cursor:pointer}\n#mt-run-overlay .run-history-tap:active{background:#273c1e}\n#mt-run-overlay .run-history-tap span{color:#a6ff00!important}\n#mt-run-overlay .run-replay-controls{border:1px solid #496b30;background:linear-gradient(130deg,#1d3219,#101b10);padding:13px;border-radius:15px;margin:0 12px 12px}\n#mt-run-overlay .run-replay-row{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:3px 0 8px}\n#mt-run-overlay .run-replay-row strong{font-size:12px;color:#d6ffc2}\n#mt-run-overlay .run-replay-row>span{font-size:11px;color:#bed6b4}\n#mt-run-overlay .run-replay-row button{display:flex;align-items:center;justify-content:center;gap:5px;min-height:37px;padding:9px;border:1px solid #4b683c;background:#1f351d;color:#d0ffb8;border-radius:10px;font-size:11px;font-weight:850}\n#mt-run-overlay #mt-replay-toggle{background:#a6ff00;border-color:#a6ff00;color:#18260d;flex:1.5}\n#mt-run-overlay #mt-replay-speed{min-width:49px}\n#mt-run-overlay #mt-replay-progress{width:100%;accent-color:#a6ff00;height:25px;margin:1px 0 8px;background:transparent}\n";document.head.appendChild(replayStyle);
 const overlay=document.createElement('section');overlay.id='mt-run-overlay';overlay.setAttribute('role','dialog');overlay.setAttribute('aria-label','Modo Corrida');overlay.hidden=true;document.body.appendChild(overlay);
 const screen=$('screen');
 if(screen){let timer=null;new MutationObserver(()=>{if(timer)clearTimeout(timer);timer=setTimeout(()=>{decorateHome()},80)}).observe(screen,{childList:true,subtree:false})}
@@ -244,5 +271,5 @@ window.addEventListener('pagehide',()=>{if(opened&&state.active)promptNative('st
 setInterval(()=>{if(!document.hidden){decorateHome();if(opened){update()}}},1000);
 setInterval(()=>{if(!document.hidden&&opened){poll()}},2500);
 poll();decorateHome();
-window.MTRunning={open,close,state:()=>state,isOpen:()=>opened,back:()=>{if(!opened)return false;if(view!=='run'){view='run';render();return true}close();return true}};
+window.MTRunning={open,close,state:()=>state,isOpen:()=>opened,back:()=>{if(!opened)return false;if(view==='replay'){stopReplay();openHistory();return true}if(view!=='run'){view='run';render();return true}close();return true}};
 })();
