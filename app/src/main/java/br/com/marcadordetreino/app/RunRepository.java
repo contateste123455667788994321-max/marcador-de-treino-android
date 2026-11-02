@@ -91,7 +91,7 @@ final class RunRepository {
         put(s,"lastAcceptedElapsed",now());put(s,"lastAccuracy",loc.getAccuracy());
         put(s,"hasFix",true);put(s,"receivedLocations",s.optInt("receivedLocations",0)+1);
         JSONArray point=new JSONArray();
-        point.put(Math.round(lat*1e6)/1e6);point.put(Math.round(lon*1e6)/1e6);
+        try{point.put(Math.round(lat*1e6)/1e6);point.put(Math.round(lon*1e6)/1e6);}catch(org.json.JSONException e){return false;}
         point.put(System.currentTimeMillis());point.put(Math.round(loc.getAccuracy()));
         if(route.length()<8000)route.put(point);
         put(s,"route",route);
