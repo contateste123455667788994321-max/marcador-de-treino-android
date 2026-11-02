@@ -199,7 +199,7 @@ function ensureLeaflet(){
 }
 async function ensureMap(){
  if(map||view==='history'||!opened||mapUnavailable)return;
- const route=view==='replay'?replayRun?.route:(Array.isArray(state.route)?state.route:[]);
+ const route=view==='replay'?replayRun?.route:view==='summary'&&lastFinished?lastFinished.route:(Array.isArray(state.route)?state.route:[]);
  if(!Array.isArray(route))return;
  if(view!=='replay'&&!state.gpsFix&&!route.length&&!Number.isFinite(state.previewLat))return;
  if(view==='replay'&&route.length===0)return;
@@ -242,7 +242,7 @@ function drawReplay(){
 function renderMapRoute(){
  if(!opened||view==='history')return;
  if(view==='replay'){drawReplay();return}
- const route=Array.isArray(state.route)?state.route:[];
+ const route=view==='summary'&&lastFinished?lastFinished.route:(Array.isArray(state.route)?state.route:[]);
  const coords=route.filter(x=>Array.isArray(x)&&Number.isFinite(x[0])&&Number.isFinite(x[1])).map(x=>[x[0],x[1]]);
  const preview=Number.isFinite(state.previewLat)&&Number.isFinite(state.previewLon)?[state.previewLat,state.previewLon]:null;
  const position=coords.length?coords[coords.length-1]:preview;
