@@ -60,7 +60,7 @@ if(ch==='local'){
 document.querySelectorAll('[data-native-provider]').forEach(b=>b.classList.toggle('active',b.dataset.nativeProvider===chosen));
 }
 function patch(){
-if(!musicScreen())return;
+if(!musicScreen()){document.body.classList.remove('mt-local-mode');return;}
 let original=document.querySelector('.music-service-picker');
 if(!original)return;
 original.style.display='none';
@@ -71,8 +71,8 @@ original.after(tabs);
 tabs.onclick=e=>{const b=e.target.closest('[data-native-provider]');if(b)switchTo(b.dataset.nativeProvider)};
 }
 document.querySelectorAll('[data-native-provider]').forEach(b=>b.classList.toggle('active',b.dataset.nativeProvider===chosen));
-if(chosen==='local'){if(!$('android-local-mode'))localScreen();}
-else {
+if(chosen==='local'){document.body.classList.add('mt-local-mode');if(!$('android-local-mode'))localScreen();}
+else {document.body.classList.remove('mt-local-mode');
  $('android-local-mode')?.remove();
  const hero=document.querySelector('.spotify-inner>.icon,.yt-orb-inner>.icon');
  if(hero)hero.outerHTML=chosen==='spotify'?spotifyLogo():youtubeLogo();
