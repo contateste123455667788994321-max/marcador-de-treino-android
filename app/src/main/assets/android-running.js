@@ -3,7 +3,7 @@
 if(window.__mtAndroidRunning)return;window.__mtAndroidRunning=true;
 const $=id=>document.getElementById(id);
 const icons={
-runner:'<circle cx="15" cy="4" r="2"/><path d="m8 17 4-4 2 2 3 5m-6-10 3-3 3 2 3 1m-6 1-4-2-4 5m-1 7 4-5"/>',
+runner:'<circle cx="15.5" cy="4.2" r="1.85"/><path d="m13.7 8.1-3.1 4.7 3.7 2.6 3.1 4.5M10.6 12.8l-3.1 4.1-4.4 1.3M13.7 8.1l3.5 1.7 3.2-1M12.3 9.7 9 8.6l-2.4 2.2"/>',
 map:'<path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3V6zm6-3v15m6-12v15"/>',
 back:'<path d="m15 18-6-6 6-6"/>',
 play:'<path d="m8 5 11 7-11 7z"/>',
