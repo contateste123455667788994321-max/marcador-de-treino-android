@@ -19,6 +19,7 @@ let state={active:false,running:false,durationMs:0,distanceMeters:0,calories:0,p
 let history={history:[],bestDistance:0,bestDuration:0,bestPace:0};
 let view='run',opened=false,lastFinished=null,elapsedBase=0,lastElapsedTick=Date.now();
 let leaflet=null,map=null,routeLine=null,ghostLine=null,positionMarker=null,mapUnavailable=false,mapLoading=false;
+let mapBaseLayer=null,mapVectorLayer=null;
 let replayRun=null,replayPlaying=false,replayProgress=0,replaySpeed=1,replayFrame=0,replayLastTick=0,cloudLoading=false;
 const replayDuration=22000;
 let countdownTimer=null,countdownToken=0,countdownLayer=null,countdownAudio=null;
@@ -199,7 +200,7 @@ function open(mode){
  if(view==='run'&&!state.active)promptNative('locate');
 }
 function close(){cancelCountdown();stopReplay();opened=false;$('mt-run-overlay').hidden=true;document.body.style.overflow='';disposeMap()}
-function disposeMap(){if(map){try{map.remove()}catch{}map=null;routeLine=null;ghostLine=null;positionMarker=null}}
+function disposeMap(){if(map){try{map.remove()}catch{}map=null;routeLine=null;ghostLine=null;positionMarker=null;mapBaseLayer=null;mapVectorLayer=null}}
 function render(){
  const overlay=$('mt-run-overlay');if(!opened||!overlay)return;
  disposeMap();
@@ -251,6 +252,70 @@ function ensureLeaflet(){
   document.head.appendChild(script);
  });
 }
+// Optional clean vector basemap, preserving the original OpenStreetMap tiles as a fallback.
+const vectorMapAssets={
+ css:'https://unpkg.com/maplibre-gl@5.15.0/dist/maplibre-gl.css',
+ js:'https://unpkg.com/maplibre-gl@5.15.0/dist/maplibre-gl.js',
+ adapter:'https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.4/leaflet-maplibre-gl.js'
+};
+let vectorLibraryPromise=null;
+function fetchMapScript(src){
+ return new Promise((resolve,reject)=>{
+  const script=document.createElement('script');
+  script.src=src;script.async=true;
+  script.onload=resolve;script.onerror=()=>reject(Error('Mapa vetorial indisponível'));
+  document.head.appendChild(script);
+ });
+}
+function vectorMapsReady(){
+ if(window.L?.maplibreGL&&window.maplibregl)return Promise.resolve(true);
+ if(vectorLibraryPromise)return vectorLibraryPromise;
+ vectorLibraryPromise=(async()=>{
+  const stylesheet=document.createElement('link');
+  stylesheet.rel='stylesheet';stylesheet.href=vectorMapAssets.css;document.head.appendChild(stylesheet);
+  if(!window.maplibregl)await fetchMapScript(vectorMapAssets.js);
+  if(!window.L?.maplibreGL)await fetchMapScript(vectorMapAssets.adapter);
+  return !!window.L?.maplibreGL&&!!window.maplibregl;
+ })().catch(()=>false);
+ return vectorLibraryPromise;
+}
+function useCleanMap(targetMap){
+ // Never interfere with tracking or drawing: only replace the basemap tiles if ready.
+ vectorMapsReady().then(ready=>{
+  if(!ready||!opened||map!==targetMap||!targetMap)return;
+  let layer;
+  try{
+   layer=window.L.maplibreGL({
+    style:'https://tiles.openfreemap.org/styles/positron',
+    attribution:'<a href="https://openfreemap.org/">OpenFreeMap</a> © OpenMapTiles · <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+   }).addTo(targetMap);
+   mapVectorLayer=layer;
+   const gl=layer.getMaplibreMap?.();
+   let settled=false;
+   const finalize=()=>{
+    if(settled)return;
+    settled=true;
+    if(map===targetMap&&targetMap.hasLayer(layer)&&mapBaseLayer){
+     targetMap.removeLayer(mapBaseLayer);mapBaseLayer=null;
+    }
+   };
+   if(gl?.loaded())finalize();
+   else if(gl)gl.once('load',finalize);
+   // If WebGL is unavailable, keep the original base map visible.
+   setTimeout(()=>{
+    if(settled||map!==targetMap)return;
+    settled=true;
+    try{if(targetMap.hasLayer(layer))targetMap.removeLayer(layer)}catch(e){}
+    if(map===targetMap)mapVectorLayer=null;
+   },7500);
+  }catch(e){
+   if(layer&&targetMap&&map===targetMap){
+    try{targetMap.removeLayer(layer)}catch(err){}
+   }
+   console.warn('Mapa vetorial indisponível; usando mapa padrão',e);
+  }
+ });
+}
 async function ensureMap(){
  if(map||view==='history'||!opened||mapUnavailable)return;
  const route=view==='replay'?replayRun?.route:view==='summary'&&lastFinished?lastFinished.route:(Array.isArray(state.route)?state.route:[]);
@@ -262,12 +327,13 @@ async function ensureMap(){
   if(!opened||view==='history'||map||!$('mt-run-map'))return;
   map=L.map('mt-run-map',{zoomControl:false,attributionControl:true,preferCanvas:true});
   if(map.attributionControl)map.attributionControl.setPrefix(false);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> colaboradores'}).addTo(map);
+  mapBaseLayer=L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> colaboradores'}).addTo(map);
+  useCleanMap(map);
   L.control.zoom({position:'bottomright'}).addTo(map);
   if(view==='replay'){
-   ghostLine=L.polyline([],{color:'#94b58d',weight:3,opacity:.24,dashArray:'5 8'}).addTo(map);
+   ghostLine=L.polyline([],{color:'#55c9bc',weight:3,opacity:.24,dashArray:'5 8'}).addTo(map);
   }
-  routeLine=L.polyline([],{color:'#a6ff00',weight:5,opacity:.95}).addTo(map);
+  routeLine=L.polyline([],{color:'#08d3aa',weight:5,opacity:.98,lineJoin:'round',lineCap:'round'}).addTo(map);
   const m=L.divIcon({className:'',html:'<div class="run-location-dot"></div>',iconSize:[18,18]});
   positionMarker=L.marker([0,0],{icon:m}).addTo(map);
   renderMapRoute();
