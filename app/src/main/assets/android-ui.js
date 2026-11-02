@@ -48,9 +48,11 @@ function switchTo(ch){
 if(!['spotify','youtube','local'].includes(ch))return;
 chosen=ch;
 if(ch==='local'){
+ document.body.classList.add('mt-local-mode');
  if(window.MTAndroidSwitchProvider)window.MTAndroidSwitchProvider('local');
  localScreen();
 }else{
+ document.body.classList.remove('mt-local-mode');
  $('android-local-mode')?.remove();
  const btn=document.querySelector('[data-provider="'+ch+'"]');if(btn)btn.click();
  setTimeout(patch,30);
