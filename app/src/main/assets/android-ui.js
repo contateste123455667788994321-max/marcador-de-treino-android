@@ -9,6 +9,10 @@ function esc(x){return String(x||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&l
 function spotifyLogo(){return '<svg viewBox="0 0 100 100" width="69" height="69"><circle cx="50" cy="50" r="46" fill="#1ED760"/><path d="M22 38q32-11 65 8M27 52q26-9 53 6M32 65q22-6 41 5" stroke="#102010" stroke-width="7" stroke-linecap="round" fill="none"/></svg>'}
 function youtubeLogo(){return '<svg viewBox="0 0 100 100" width="69" height="69"><circle cx="50" cy="50" r="46" fill="#FF0033"/><circle cx="50" cy="50" r="27" fill="none" stroke="#fff" stroke-width="4"/><path d="M43 34 68 50 43 66Z" fill="#fff"/></svg>'}
 function mineLogo(){return '<svg viewBox="0 0 100 100" width="70" height="70"><circle cx="50" cy="50" r="46" fill="#a6ff00"/><circle cx="50" cy="50" r="33" fill="#0c190c"/><path d="M46 32v30m0-30 23-5v28" stroke="#a6ff00" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><ellipse cx="36" cy="64" rx="10" ry="7" fill="#a6ff00"/><ellipse cx="59" cy="58" rx="10" ry="7" fill="#a6ff00"/></svg>'}
+function controlIcon(name){
+ const paths={shuffle:'<path d="M3 7h3c5 0 6 10 12 10h3m-4-4 4 4-4 4M3 17h3c2 0 3-2 4-4m4-4c1-2 2-2 4-2h3m-4-4 4 4-4 4"/>',previous:'<path d="M5 5v14m14-14-11 7 11 7z"/>',play:'<path d="m8 5 11 7-11 7z"/>',pause:'<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>',next:'<path d="m5 5 11 7-11 7zM19 5v14"/>',repeat:'<path d="m17 2 4 4-4 4M3 11V9a3 3 0 0 1 3-3h18M7 22l-4-4 4-4m14-1v2a3 3 0 0 1-3 3H3"/>'};
+ return '<svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(paths[name]||paths.play)+'</svg>';
+}
 function musicScreen(){return $('header-text')?.textContent==='Music'}
 function trackTitle(){return current.tracks[current.index]?.name||'Nenhuma música selecionada'}
 function renderLibrary(){
@@ -20,7 +24,7 @@ const screen=$('screen');if(!screen)return;
 document.querySelectorAll('.music-hero,.music-playback-card,.music-tools,.music-queue,.music-external,.music-note').forEach(n=>n.style.display='none');
 $('android-local-mode')?.remove();
 const section=document.createElement('section');section.id='android-local-mode';
-section.innerHTML='<div class="native-player"><div class="native-player-orb"><div class="native-player-orb-center">'+mineLogo()+'<strong>Minhas músicas</strong></div></div><p class="caption">Suas músicas acompanham o seu treino.</p><div class="native-current" id="android-native-title"></div><div class="native-transport"><button data-native-action="shuffle" id="android-shuffle">⤨</button><button data-native-action="previous">⏮</button><button data-native-action="toggle" class="native-play" id="android-play">▶</button><button data-native-action="next">⏭</button><button data-native-action="repeat" id="android-repeat">↻</button></div><div class="native-status" id="android-native-status"></div></div>'+
+section.innerHTML='<div class="native-player"><div class="native-player-orb"><div class="native-player-orb-center">'+mineLogo()+'<strong>Minhas músicas</strong></div></div><p class="caption">Suas músicas acompanham o seu treino.</p><div class="native-current" id="android-native-title"></div><div class="native-transport"><button data-native-action="shuffle" id="android-shuffle" aria-label="Aleatório">'+controlIcon('shuffle')+'</button><button data-native-action="previous" aria-label="Anterior">'+controlIcon('previous')+'</button><button data-native-action="toggle" class="native-play" id="android-play" aria-label="Reproduzir">'+controlIcon('play')+'</button><button data-native-action="next" aria-label="Próxima">'+controlIcon('next')+'</button><button data-native-action="repeat" id="android-repeat" aria-label="Repetir">'+controlIcon('repeat')+'</button></div><div class="native-status" id="android-native-status"></div></div>'+
 '<div class="native-library"><h3>Minha playlist</h3><button class="native-add" data-native-action="pick">+ Adicionar músicas do celular</button><div id="android-local-tracks"></div><p class="caption">Arquivos escolhidos por você ficam no celular. A reprodução pode continuar com a tela apagada.</p></div>';
 screen.appendChild(section);
 section.onclick=e=>{const b=e.target.closest('button');if(!b)return;
@@ -33,7 +37,7 @@ renderLibrary();update();
 }
 function update(){
 if($('android-native-title'))$('android-native-title').textContent=trackTitle();
-if($('android-play'))$('android-play').textContent=current.playing?'Ⅱ':'▶';
+if($('android-play')){$('android-play').innerHTML=controlIcon(current.playing?'pause':'play');$('android-play').setAttribute('aria-label',current.playing?'Pausar':'Reproduzir')}
 if($('android-shuffle'))$('android-shuffle').classList.toggle('selected',current.shuffle);
 if($('android-repeat'))$('android-repeat').classList.toggle('selected',current.repeat);
 if($('android-native-status'))$('android-native-status').textContent=current.error||(current.playing?'Reproduzindo inclusive com a tela apagada':current.tracks.length?'Toque em ▶ para começar':'Escolha as músicas que deseja ouvir.');
