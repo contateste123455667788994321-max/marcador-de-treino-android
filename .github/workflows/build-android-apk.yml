@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
 permissions:
-  contents: read
+  contents: write
 jobs:
   apk-debug:
     runs-on: ubuntu-latest
@@ -33,3 +33,17 @@ jobs:
           name: Marcador-de-Treino-Android-APK
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+      - name: Publicar APK para download direto
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          APP_VERSION=$(sed -n "s/.*versionName '\([^']*\)'.*/\1/p" app/build.gradle | head -n 1)
+          if [ -z "$APP_VERSION" ]; then echo "Versão não encontrada"; exit 1; fi
+          TAG="v$APP_VERSION"
+          APK_NAME="Marcador_de_Treino_Android_${APP_VERSION//./_}.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "$APK_NAME"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK_NAME" --clobber
+          else
+            gh release create "$TAG" "$APK_NAME" --title "Marcador de Treino Android $APP_VERSION" --notes "Versão Android $APP_VERSION (APK de teste). Faça backup dos dados antes de substituir a instalação anterior." --latest --target "$GITHUB_SHA"
+          fi
