@@ -164,5 +164,5 @@ window.addEventListener('pagehide',()=>{if(opened&&state.active)promptNative('st
 setInterval(()=>{if(!document.hidden){decorateHome();if(opened){update()}}},1000);
 setInterval(()=>{if(!document.hidden&&opened){poll()}},2500);
 poll();decorateHome();
-window.MTRunning={open,close,state:()=>state};
+window.MTRunning={open,close,state:()=>state,isOpen:()=>opened,back:()=>{if(!opened)return false;if(view!=='run'){view='run';render();return true}close();return true}};
 })();
