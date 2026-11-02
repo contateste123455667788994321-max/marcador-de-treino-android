@@ -22,6 +22,7 @@ function navigate(name){
  return false;
 }
 window.MTAndroidBack=function(){
+ if(window.MTOwnerTools?.back?.())return 'handled';
  if(window.MTOwnerPanel?.back?.())return 'handled';
  if(window.MTNoticeBell?.back?.())return 'handled';
  if(window.MTProfilePhoto?.hideIfOpen?.())return 'handled';
