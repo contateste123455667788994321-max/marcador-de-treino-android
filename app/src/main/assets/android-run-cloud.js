@@ -1,10 +1,12 @@
 (function(){
 'use strict';
 if(window.__mtRunCloudInstalled)return;window.__mtRunCloudInstalled=true;
-const URL='/api/run-history', KEY='mt-run-cloud-opt-in-v1',$=id=>document.getElementById(id);
-let opted=localStorage.getItem(KEY)==='yes', user=null,runs=[],online=true,busy=false,dialogOpen=false,codeSent=false,email='',lastError='',lastSync=0;
+const URL='/api/run-history', KEY='mt-run-cloud-opt-in-v2:',$=id=>document.getElementById(id);
+let opted=false, user=null,runs=[],online=true,busy=false,dialogOpen=false,codeSent=false,email='',lastError='',lastSync=0;
 const listeners=new Set();
 const auth=()=>window.hatchable?.auth||null;
+const consentKey=()=>KEY+String(user?.id||'');
+function checkConsent(){opted=!!user&&localStorage.getItem(consentKey())==='yes'}
 const esc=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function status(){return {opted,loggedIn:!!user,email:user?.email||'',name:user?.name||'',image:user?.image||'',id:user?.id||'',runs:runs.slice(),busy,online,error:lastError,lastSync}}
 function tell(){listeners.forEach(cb=>{try{cb(status())}catch(e){console.warn(e)}})}
@@ -22,7 +24,7 @@ async function load(){
  tell();return runs;
 }
 async function refresh(){
- try{const a=auth();if(!a)throw Error('Contas indisponíveis');const session=await a.getSession();user=session?.user||null;if(!user)runs=[];else await load();lastError='';}
+ try{const a=auth();if(!a)throw Error('Contas indisponíveis');const session=await a.getSession();user=session?.user||null;checkConsent();if(!user)runs=[];else await load();lastError='';}
  catch(e){lastError='Não foi possível conectar à sua conta';}
  tell();return status();
 }
@@ -45,12 +47,12 @@ async function uploadLocal(){
 }
 async function enable(){
  if(!user){await show();return}
- opted=true;localStorage.setItem(KEY,'yes');tell();await uploadLocal();renderDialog();
+ opted=true;localStorage.setItem(consentKey(),'yes');tell();await uploadLocal();renderDialog();
 }
-function disable(){opted=false;localStorage.removeItem(KEY);lastError='';tell();renderDialog()}
+function disable(){if(user)localStorage.removeItem(consentKey());opted=false;lastError='';tell();renderDialog()}
 async function full(startWall){if(!user)return null;const data=await request(URL+'?startWall='+encodeURIComponent(String(startWall)));return data.run||null}
 async function remove(startWall){if(!user)return false;await request(URL+'?startWall='+encodeURIComponent(String(startWall)),{method:'DELETE'});await load();return true}
-async function signout(){opted=false;localStorage.removeItem(KEY);if(auth())await auth().signOut().catch(()=>{});user=null;runs=[];codeSent=false;lastError='';tell();renderDialog()}
+async function signout(){if(user)localStorage.removeItem(consentKey());opted=false;if(auth())await auth().signOut().catch(()=>{});user=null;runs=[];codeSent=false;lastError='';tell();renderDialog()}
 function info(msg){if($('mt-cloud-info'))$('mt-cloud-info').textContent=msg}
 function create(){
  if($('mt-cloud-dialog'))return $('mt-cloud-dialog');
@@ -65,7 +67,7 @@ function html(){
   else inner='<p>Código enviado para '+esc(email)+'.</p><label>Digite o código de 6 números</label><input id="mt-cloud-code" inputmode="numeric" maxlength="6" autocomplete="one-time-code" placeholder="000000"><button id="mt-cloud-verify">Entrar</button><button class="secondary" id="mt-cloud-edit-email">Alterar e-mail</button>';
  }else {
   inner='<div class="cloud-status">Conta: '+esc(user.email||'Atleta')+'</div>';
-  if(!opted)inner+='<p>Ao ativar, os caminhos percorridos (coordenadas GPS), tempo, distância e calorias serão guardados na sua conta privada. Assim você recupera as corridas em outro aparelho.</p><button id="mt-cloud-enable">Autorizo e quero ativar o backup</button>';
+  if(!opted)inner+='<p>Ao ativar, as corridas já salvas neste celular e as futuras corridas concluídas (incluindo coordenadas GPS) serão enviadas à sua conta privada. Use sua própria conta e não compartilhe o aparelho sem sair dela.</p><button id="mt-cloud-enable">Autorizo e quero ativar o backup</button>';
   else inner+='<p>Backup ativado. Corridas concluídas sincronizam com internet.</p><div class="cloud-status">'+runs.length+' corrida(s) na nuvem</div><button id="mt-cloud-sync">Sincronizar agora</button><button class="secondary" id="mt-cloud-disable">Desativar backup automático</button><button class="danger" id="mt-cloud-delete">Apagar histórico da nuvem</button>';
   inner+='<button class="secondary" id="mt-cloud-signout">Sair desta conta</button>';
  }
@@ -99,7 +101,7 @@ function renderDialog(){
   if(!confirm('Apagar TODAS as corridas da nuvem? As corridas locais permanecem no celular.'))return;
   busy=true;tell();let failed=0;
   for(const r of runs.slice()){try{await remove(r.startWall)}catch(e){failed++}}
-  busy=false;opted=false;localStorage.removeItem(KEY);await load();tell();renderDialog();info(failed?'Falha ao excluir algumas corridas.':'Histórico na nuvem apagado.');
+  busy=false;opted=false;if(user)localStorage.removeItem(consentKey());await load();tell();renderDialog();info(failed?'Falha ao excluir algumas corridas.':'Histórico na nuvem apagado.');
  };
 }
 async function show(){dialogOpen=true;create().hidden=false;renderDialog();await refresh();renderDialog()}
