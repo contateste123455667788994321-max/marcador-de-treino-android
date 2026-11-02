@@ -32,6 +32,27 @@ function importProfile(force=false){
  }
  return true;
 }
+async function restoreBackup(file){
+ if(!file)return;
+ if(file.size>12*1024*1024){alert('O backup é grande demais. Limite: 12 MB.');return}
+ let backup;
+ try{backup=JSON.parse(await file.text())}catch(e){alert('Arquivo de backup inválido.');return}
+ if(!backup||typeof backup!=='object'||(!Array.isArray(backup.workouts)&&!Array.isArray(backup.runHistory))){alert('Este arquivo não parece ser do Marcador de Treino.');return}
+ if(!confirm('Restaurar os dados deste backup? Os treinos e refeições atuais serão substituídos.'))return;
+ const mapping=[['workouts','mt-workout'],['meals','mt-meals'],['sessions','mt-sessions'],['bodyHistory','mt-body-history'],['bodyMeasures','mt-body-measures']];
+ for(const [field,key] of mapping)if(Array.isArray(backup[field]))localStorage.setItem(key,JSON.stringify(backup[field]));
+ if(backup.profile&&typeof backup.profile==='object'&&!Array.isArray(backup.profile))localStorage.setItem('mt-profile',JSON.stringify(backup.profile));
+ if(Number.isFinite(Number(backup.goal))&&Number(backup.goal)>300&&Number(backup.goal)<20000)localStorage.setItem('mt-diet-goal',JSON.stringify(Number(backup.goal)));
+ let restored=0;
+ if(Array.isArray(backup.runHistory)){
+  for(const run of backup.runHistory.slice(0,80)){
+   if(!run||!Array.isArray(run.route))continue;
+   try{const response=JSON.parse(window.prompt('mt-run:import:'+JSON.stringify(run),'')||'{}');restored+=Number(response.imported)||0}catch(e){console.warn('Importação da rota ignorada')}
+  }
+ }
+ alert('Backup restaurado! '+restored+' corrida(s) recuperada(s). O aplicativo vai atualizar a tela.');
+ location.reload();
+}
 function decorate(){
  if($('header-text')?.textContent?.trim()!=='Perfil')return;
  const screen=$('screen');if(!screen||$('mt-account-profile'))return;
@@ -44,6 +65,7 @@ function decorate(){
  (!s.loggedIn?'<button class="google" id="mt-account-google"'+(isGoogle?'':' disabled')+'><span class="google-mark">G</span> Continuar com Google</button>':'')+
  '<button class="main" id="mt-account-cloud">'+(s.loggedIn?'Gerenciar backup das corridas':'Entrar com e-mail')+'</button>'+
  (s.loggedIn&&(s.name||image)?'<button id="mt-account-import">Usar nome e foto desta conta</button>':'')+
+ '<button id="mt-account-restore">Restaurar backup do aplicativo</button><input type="file" id="mt-account-restore-file" accept="application/json,.json" style="display:none">'+
  '</div>'+
  (!isGoogle?'<small>Login Google: falta concluir a configuração de domínio próprio no painel do app. O acesso por e-mail já funciona.</small>':'<small>Seu histórico fica privado. Salvar na nuvem requer autorização.</small>');
  const profile=screen.querySelector('.profile-header');if(profile)profile.after(card);else screen.prepend(card);
@@ -56,6 +78,8 @@ function decorate(){
  const importButton=$('mt-account-import');if(importButton)importButton.onclick=()=>{
   if(!importProfile(true))alert('Esta conta não disponibilizou nome ou foto para importar.');
  };
+ const restore=$('mt-account-restore'),file=$('mt-account-restore-file');
+ if(restore&&file){restore.onclick=()=>file.click();file.onchange=()=>restoreBackup(file.files?.[0])}
 }
 function schedule(){if(scheduled)return;scheduled=true;setTimeout(()=>{scheduled=false;decorate()},85)}
 const root=$('screen');if(root)new MutationObserver(schedule).observe(root,{childList:true,subtree:false});
