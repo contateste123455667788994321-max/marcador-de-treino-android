@@ -122,6 +122,7 @@ public final class MainActivity extends Activity {
     private void installNativeUi(){
         loadJavascriptAsset("android-ui.js");
         loadJavascriptAsset("android-extras.js");
+        loadJavascriptAsset("android-polish.js");
     }
     private void loadJavascriptAsset(String filename){
         try(InputStream is=getAssets().open(filename)){
