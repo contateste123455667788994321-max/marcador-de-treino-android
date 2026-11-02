@@ -9,7 +9,7 @@ const session=()=>window.MTCloudRuns?.status?.()||{};
 const ownerUrl='/api/account/admin-dashboard';
 async function role(){
  const user=session();const id=user.loggedIn?String(user.id||''):'';
- if(!id){lastId='';isOwner=false;openedOnce=false;close();return}
+ if(!id){lastId='';isOwner=false;openedOnce=false;$('mt-owner-button')?.remove();close();return}
  if(checking||id===lastId)return;
  checking=true;
  try{
@@ -17,13 +17,13 @@ async function role(){
   if(res.ok){
    const data=await res.json();
    if(session().loggedIn&&String(session().id)===id){
-    isOwner=!!data.owner;lastId=id;
+    isOwner=!!data.owner;lastId=id;if(!isOwner){$('mt-owner-button')?.remove();close()}
     if(isOwner){
      decorate();
      if(!openedOnce){openedOnce=true;setTimeout(()=>{if(isOwner&&session().loggedIn)open()},450)}
     }
    }
-  }else if(res.status===403){isOwner=false;lastId=id}
+  }else if(res.status===403){isOwner=false;lastId=id;$('mt-owner-button')?.remove();close()}
  }catch(e){}finally{checking=false}
 }
 async function call(body){
