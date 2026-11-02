@@ -120,13 +120,17 @@ public final class MainActivity extends Activity {
     }
 
     private void installNativeUi(){
-        try(InputStream is=getAssets().open("android-ui.js")){
+        loadJavascriptAsset("android-ui.js");
+        loadJavascriptAsset("android-extras.js");
+    }
+    private void loadJavascriptAsset(String filename){
+        try(InputStream is=getAssets().open(filename)){
             byte[] bytes=new byte[is.available()];
             int read=0;
             while(read<bytes.length){int count=is.read(bytes,read,bytes.length-read);if(count<0)break;read+=count;}
             String script=new String(bytes,0,read,StandardCharsets.UTF_8);
             web.evaluateJavascript(script,null);
-        }catch(Exception e){android.util.Log.w("MarcadorDeTreino","Falha ao abrir recursos nativos",e);}
+        }catch(Exception e){android.util.Log.w("MarcadorDeTreino","Falha ao carregar "+filename,e);}
     }
     private void pickAudio(){
         Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT);
