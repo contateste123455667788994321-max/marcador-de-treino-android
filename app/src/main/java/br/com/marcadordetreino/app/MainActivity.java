@@ -7,6 +7,7 @@ import android.content.*;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.hardware.*;
+import android.location.LocationManager;
 import android.net.Uri;
 import android.os.*;
 import android.webkit.*;
@@ -21,9 +22,11 @@ import android.widget.EditText;
 /** Aplicativo Android que usa a interface do Marcador de Treino no WebView. */
 public final class MainActivity extends Activity {
     private static final String SITE="marcador-de-treino-ckcg.hatchable.site";
-    private static final int PHYSICAL_PERMISSION=1901,NOTIFICATION_PERMISSION=1902,PICK_AUDIO=1903,FILE_CHOOSER=1904;
+    private static final int PHYSICAL_PERMISSION=1901,NOTIFICATION_PERMISSION=1902,PICK_AUDIO=1903,FILE_CHOOSER=1904,RUN_GPS_PERMISSION=1905;
     private WebView web;
     private StepRepository steps;
+    private RunRepository running;
+    private boolean startRunAfterPermission=false;
     private boolean available;
     private boolean startAfterPermission;
     private boolean onboardingScheduled;
@@ -34,6 +37,7 @@ public final class MainActivity extends Activity {
         getWindow().setStatusBarColor(Color.rgb(8,11,8));
         getWindow().setNavigationBarColor(Color.rgb(8,11,8));
         steps=new StepRepository(this);
+        running=new RunRepository(this);
         SensorManager mgr=(SensorManager)getSystemService(Context.SENSOR_SERVICE);
         available=mgr!=null&&mgr.getDefaultSensor(Sensor.TYPE_STEP_COUNTER)!=null;
         web=new WebView(this);
@@ -80,8 +84,21 @@ public final class MainActivity extends Activity {
             @Override public boolean onJsPrompt(WebView view,String originUrl,String message,String defaultValue,JsPromptResult result){
                 Uri uri=Uri.parse(originUrl==null?"":originUrl);
                 if(!"https".equals(uri.getScheme())||!SITE.equals(uri.getHost())||message==null
-                    ||(!message.startsWith("mt-native:")&&!message.startsWith("mt-music:")))
+                    ||(!message.startsWith("mt-native:")&&!message.startsWith("mt-music:")&&!message.startsWith("mt-run:")))
                     return super.onJsPrompt(view,originUrl,message,defaultValue,result);
+                if(message.startsWith("mt-run:")){
+                    String cmd=message.substring("mt-run:".length()),response="";
+                    try{
+                        if("state".equals(cmd))response=runState();
+                        else if("history".equals(cmd))response=running.historyJson();
+                        else if("start".equals(cmd)){startRunWithPermission();response=runState();}
+                        else if("pause".equals(cmd)){running.pause();sendRunService(RunTrackingService.PAUSE);response=runState();}
+                        else if("resume".equals(cmd)){resumeRunWithPermission();response=runState();}
+                        else if("finish".equals(cmd)){response=running.finish();sendRunService(RunTrackingService.FINISH);}
+                    }catch(Exception e){android.util.Log.w("MarcadorDeTreino","Comando de corrida",e);response="{\\"error\\":\\"Falha no GPS\\}" ;}
+                    result.confirm(response);
+                    return true;
+                }
                 if(message.startsWith("mt-music:")){
                     String command=message.substring("mt-music:".length()),answer="";
                     try{
@@ -123,6 +140,7 @@ public final class MainActivity extends Activity {
         loadJavascriptAsset("android-ui.js");
         loadJavascriptAsset("android-extras.js");
         loadJavascriptAsset("android-polish.js");
+        loadJavascriptAsset("android-running.js");
     }
     private void loadJavascriptAsset(String filename){
         try(InputStream is=getAssets().open(filename)){
@@ -132,6 +150,48 @@ public final class MainActivity extends Activity {
             String script=new String(bytes,0,read,StandardCharsets.UTF_8);
             web.evaluateJavascript(script,null);
         }catch(Exception e){android.util.Log.w("MarcadorDeTreino","Falha ao carregar "+filename,e);}
+    }
+
+    private boolean hasRunPermission(){
+        return checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED;
+    }
+    private boolean gpsEnabled(){
+        LocationManager mgr=(LocationManager)getSystemService(LOCATION_SERVICE);
+        try{return mgr!=null&&(mgr.isProviderEnabled(LocationManager.GPS_PROVIDER)||mgr.isProviderEnabled(LocationManager.NETWORK_PROVIDER));}
+        catch(Exception e){return false;}
+    }
+    private String runState(){
+        org.json.JSONObject json;
+        try{json=new org.json.JSONObject(running.json(gpsEnabled(),hasRunPermission()));}
+        catch(Exception e){return "{}";}
+        return json.toString();
+    }
+    private void startRunWithPermission(){
+        if(running.isActive()){sendRunService(RunTrackingService.START);return;}
+        if(!hasRunPermission()){
+            startRunAfterPermission=true;
+            requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION},RUN_GPS_PERMISSION);
+            return;
+        }
+        running.start(steps.weight());
+        sendRunService(RunTrackingService.START);
+    }
+    private void resumeRunWithPermission(){
+        if(!running.isActive())return;
+        if(!hasRunPermission()){
+            startRunAfterPermission=true;
+            requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION},RUN_GPS_PERMISSION);
+            return;
+        }
+        running.resume();sendRunService(RunTrackingService.RESUME);
+    }
+    private void sendRunService(String action){
+        Intent service=new Intent(this,RunTrackingService.class).setAction(action);
+        try{
+            if(RunTrackingService.FINISH.equals(action))startService(service);
+            else if(Build.VERSION.SDK_INT>=26)startForegroundService(service);
+            else startService(service);
+        }catch(Exception ex){android.util.Log.w("MarcadorDeTreino","Não foi possível iniciar GPS da corrida",ex);}
     }
     private void pickAudio(){
         Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT);
@@ -228,6 +288,14 @@ public final class MainActivity extends Activity {
     }
     @Override public void onRequestPermissionsResult(int request,String[] perms,int[] results){
         super.onRequestPermissionsResult(request,perms,results);
+        if(request==RUN_GPS_PERMISSION){
+            if(startRunAfterPermission&&hasRunPermission()){
+                if(running.isActive()){running.resume();sendRunService(RunTrackingService.RESUME);}
+                else {running.start(steps.weight());sendRunService(RunTrackingService.START);}
+            }
+            startRunAfterPermission=false;
+            updateBrowser();return;
+        }
         if(request==PHYSICAL_PERMISSION){
             if(startAfterPermission&&results.length>0&&results[0]==PackageManager.PERMISSION_GRANTED){
                 startServiceTracking();requestNotifications();
