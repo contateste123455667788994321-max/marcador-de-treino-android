@@ -1,6 +1,6 @@
-# Backup independente — Marcador de Treino (Hatchable v35, 2026-11-02)
+# Backup independente — Marcador de Treino (Hatchable v36, 2026-11-02)
 
-Este diretório foi copiado do projeto Hatchable Marcador de Treino, versão 35. Os arquivos Android originais ficam nas pastas app/ e .github/ deste repositório, nesta mesma ramificação.
+Este diretório foi copiado do projeto Hatchable Marcador de Treino, versão 36. Os arquivos Android originais ficam nas pastas app/ e .github/ deste repositório, nesta mesma ramificação.
 
 ## O que foi salvo
 - Site (public/): interface, estilos, scripts, notificações e painel administrativo.

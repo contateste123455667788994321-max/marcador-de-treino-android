@@ -2,7 +2,7 @@
 html.mt-web{background:#080d08;scroll-behavior:smooth}
 .mt-web body{background:radial-gradient(ellipse at 80% 0,#172b13 0,transparent 42%),#080d08}
 #mt-web-topbar,#mt-web-sidebar{display:none}
-@media(min-width:840px){
+@media(min-width:720px){
  .mt-web #mt-web-topbar{display:flex;align-items:center;justify-content:space-between;gap:20px;height:78px;padding:0 max(28px,calc((100vw - 1320px)/2 + 28px));position:sticky;top:0;z-index:100;background:#0c120deF;border-bottom:1px solid #2c4027;backdrop-filter:blur(18px)}
  .mt-web .mt-site-brand{display:flex;align-items:center;gap:13px;color:#f3ffe9;text-decoration:none;min-width:0}
  .mt-web .mt-site-brand-icon{display:grid;place-items:center;background:#263f18;width:45px;height:45px;flex-shrink:0;border:1px solid #639638;border-radius:14px;color:#a6ff00}
@@ -45,13 +45,13 @@ html.mt-web{background:#080d08;scroll-behavior:smooth}
  .mt-web #screen:has(> .home-hero) > .home-diet{grid-column:2;grid-row:3}
  .mt-web #screen:has(> .home-hero) > .home-secondary{grid-column:1/-1}
 }
-@media(min-width:840px) and (max-width:1099px){
+@media(min-width:720px) and (max-width:1099px){
  .mt-web #mt-web-sidebar{width:215px;left:14px}
  .mt-web #app{padding-left:230px}
  .mt-web #screen{padding:20px 24px 75px}
  .mt-web .exercise-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
 }
-@media(max-width:839px){
+@media(max-width:719px){
  .mt-web body{background:#080b08}
  .mt-web #mt-web-topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:66px;padding:8px 13px;background:#101b0e;border-bottom:1px solid #33502a}
  .mt-web .mt-site-brand{color:#f3ffea;display:flex;align-items:center;gap:8px;min-width:0}
@@ -63,4 +63,77 @@ html.mt-web{background:#080d08;scroll-behavior:smooth}
  .mt-web .mt-site-android{display:flex;align-items:center;justify-content:center;border:1px solid #527b31;border-radius:10px;padding:9px 8px;color:#d6ffae;font-size:10px;font-weight:800;white-space:nowrap;text-align:center;max-width:106px}
  .mt-web #app{max-width:550px}
  .mt-web #screen{padding-bottom:calc(108px + env(safe-area-inset-bottom))}
+}
+/* Correção v36: cabeçalhos sem sobreposição, site fiel ao aplicativo */
+html.mt-web,html.mt-web body{background-color:#070a07}
+.mt-web #app,.mt-web #screen{min-width:0}
+.mt-web .app-header .header-title{min-width:0;flex:1 1 auto}
+.mt-web .app-header .header-buttons{display:flex;align-items:center;flex:0 0 auto}
+.mt-web .app-header #header-text{display:block;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mt-web .panel,.mt-web .exercise-tile,.mt-web .steps-home,.mt-web .progress-home,.mt-web .music-hero{border-color:#35482f}
+.mt-web .progress-home{background:linear-gradient(145deg,#1e291b,#101710);box-shadow:0 8px 26px #0009,0 0 16px #a6ff000e}
+.mt-web .progress-ring{filter:drop-shadow(0 0 8px #a6ff0041)}
+.mt-web .metric-fire{color:#a6ff00;background:radial-gradient(circle,#2e491a87,transparent 73%)}
+.mt-web .metric-fire svg{stroke:#a6ff00}
+.mt-web .progress-track>span{background:linear-gradient(90deg,#80d800,#a6ff00,#b9ff3f);box-shadow:0 0 12px #a6ff005a}
+.mt-web .home-primary-action{background:linear-gradient(145deg,#1d3018,#0d170f);border:1px solid #405e2e;border-radius:18px}
+.mt-web .home-hero{filter:contrast(1.08) saturate(.69) brightness(.9)}
+.mt-web #bottom-nav{background:#090e09;border-top:1px solid #263225;box-shadow:0 -8px 24px #000c}
+.mt-web #bottom-nav .nav-btn.active{color:#b5ff37}
+.mt-web .music-hero{background:radial-gradient(ellipse at 50% 35%,#213e15 0%,#142113 35%,#090e0a 85%);border:1px solid #354f2c;box-shadow:inset 0 0 23px #a6ff000d,0 9px 25px #0009}
+.mt-web .spotify-orb,.mt-web .yt-orb{box-shadow:0 0 17px #a6ff0061,0 0 46px #a6ff0028}
+.mt-web .btn-lime,.mt-web .home-start-btn{background:linear-gradient(120deg,#c0ff46,#9efa00);color:#12220a}
+.mt-web .exercise-tile,.mt-web .meal-row,.mt-web .music-playback-card{box-shadow:0 4px 17px #0007}
+@media(min-width:720px){
+ .mt-web #mt-web-topbar{min-width:0;isolation:isolate}
+ .mt-web #mt-web-topbar .mt-site-brand{flex:1 1 auto;min-width:0;max-width:calc(100% - 205px);overflow:hidden}
+ .mt-web #mt-web-topbar .mt-site-brand>span:last-child{display:block;min-width:0;overflow:hidden}
+ .mt-web .mt-site-brand-title{display:block;font-size:clamp(19px,2.1vw,26px);line-height:1.05;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+ .mt-web .mt-site-brand-title strong{display:inline;white-space:nowrap}
+ .mt-web .mt-site-tagline{white-space:nowrap;text-overflow:ellipsis;overflow:hidden;display:block}
+ .mt-web .mt-site-actions{flex:0 0 auto}
+ .mt-web .mt-site-android{white-space:nowrap;max-width:195px;font-size:11px}
+ .mt-web body.home-view .app-header{
+   position:relative!important;top:auto!important;left:auto!important;
+   right:auto!important;transform:none!important;max-width:none!important;
+   width:100%!important;z-index:65;background:#0b110be8!important;
+   height:72px!important;padding:14px 26px!important;align-items:center!important;
+   pointer-events:auto!important;box-sizing:border-box
+ }
+ .mt-web body.home-view .app-header .header-title{font-size:18px!important;text-shadow:none}
+ .mt-web body.home-view #header-glyph{display:inline-flex}
+ .mt-web body.home-view .home-hero:after{content:''!important;inset:0!important;left:0!important;top:0!important;right:0!important;bottom:0!important;background:linear-gradient(0deg,#060b06bd,transparent 65%);font-size:0!important}
+ .mt-web #app{overflow:visible}
+ .mt-web .home-hero{height:280px!important;min-height:280px!important;border-radius:18px!important;background-position:center 44%!important}
+ .mt-web .home-hero:after{content:''!important}
+ .mt-web body.home-view .progress-home{margin-top:-22px}
+ .mt-web #screen{width:100%;box-sizing:border-box}
+ .mt-web .exercise-grid .tile-photo{height:165px}
+ .mt-web #bottom-nav{display:none!important}
+}
+@media(min-width:720px) and (max-width:1099px){
+ .mt-web #mt-web-sidebar{width:205px;left:12px}
+ .mt-web #app{padding-left:218px}
+ .mt-web #screen{padding:16px 22px 75px}
+ .mt-web #mt-web-topbar{padding-left:20px;padding-right:20px}
+ .mt-web .home-hero{height:265px!important;min-height:265px!important}
+ .mt-web body.home-view .app-header{height:68px!important;padding:12px 20px!important}
+}
+@media(max-width:719px){
+ /* Sem cabeçalho extra no celular: usa exatamente o cabeçalho original do app */
+ .mt-web #mt-web-topbar,.mt-web #mt-web-sidebar{display:none!important}
+ .mt-web #app{max-width:550px;padding:0;margin:0 auto}
+ .mt-web body.home-view .app-header{
+   left:50%;top:0;transform:translateX(-50%);z-index:12;
+   width:100%;max-width:550px;background:transparent!important
+ }
+ .mt-web body.home-view .home-hero{height:287px!important;min-height:287px!important}
+ .mt-web body.home-view .progress-home{margin-top:-110px!important;z-index:3}
+ .mt-web #screen{min-width:0}
+ .mt-web .home-hero:after{content:''}
+}
+@media(max-width:380px){
+ .mt-web .home-steps h3,.mt-web .home-diet h3{font-size:12px}
+ .mt-web .progress-body{grid-template-columns:minmax(95px,115px) minmax(0,1fr)}
+ .mt-web .metric small{font-size:10px}
 }
