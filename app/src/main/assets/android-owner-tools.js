@@ -135,14 +135,14 @@ async function suggestionDetails(id){
 }
 function clearSuggestions(){
  if(!owner())return;
- const root=$('mt-admin-overlay .mt-admin-panel');if(!root)return;
+ const root=document.querySelector('#mt-admin-overlay .mt-admin-panel');if(!root)return;
  confirmation(root,'Apagar TODAS as sugestões de exercícios recebidas? Esta ação não pode ser desfeita.',async()=>{
   await api('/api/account/admin-dashboard',{action:'clearSuggestions'});window.MTOwnerPanel?.open?.();
  });
 }
 function decorate(){
  if(!owner()||!$('mt-admin-overlay')||$('mt-admin-overlay').hidden)return;
- const container=$('mt-admin-overlay .mt-admin-width');if(!container||$('mt-owner-contact-btn'))return;
+ const container=document.querySelector('#mt-admin-overlay .mt-admin-width');if(!container||$('mt-owner-contact-btn'))return;
  const title=[...container.querySelectorAll('h3')].find(e=>e.textContent==='Sugestões de exercícios');
  if(!title)return;
  const section=document.createElement('section');section.className='mt-admin-panel';
