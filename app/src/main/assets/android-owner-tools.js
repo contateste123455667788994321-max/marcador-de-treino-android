@@ -13,7 +13,7 @@ function openFrame(title){
  $('mt-tools-back').onclick=close;
  return $('mt-tools-main');
 }
-function close(){overlay().hidden=true}
+function close(){const el=overlay();el.hidden=true;el.replaceChildren()}
 function back(){if(overlay().hidden)return false;close();return true}
 async function api(path,data){
  const r=await fetch(path,{method:data?'POST':'GET',credentials:'include',cache:'no-store',headers:data?{'Content-Type':'application/json'}:{},body:data?JSON.stringify(data):undefined});
@@ -174,6 +174,8 @@ function decorate(){
 let timer=false;
 const observer=new MutationObserver(()=>{if(timer)return;timer=true;setTimeout(()=>{timer=false;decorate()},70)});
 observer.observe(document.body,{childList:true,subtree:true});
+if(window.MTCloudRuns?.listen)window.MTCloudRuns.listen(()=>{if(!owner())close()});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&!owner())close()});
 window.MTOwnerTools={back,inbox,users,close};
 setInterval(()=>{if(!document.hidden&&!working)decorate()},2800);
 })();
