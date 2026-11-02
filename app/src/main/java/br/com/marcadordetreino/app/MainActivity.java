@@ -151,6 +151,8 @@ public final class MainActivity extends Activity {
         loadJavascriptAsset("android-run-cloud.js");
         loadJavascriptAsset("android-account-profile.js");
         loadJavascriptAsset("android-profile-photo.js");
+        loadJavascriptAsset("android-notices.js");
+        loadJavascriptAsset("android-owner-panel.js");
         loadJavascriptAsset("android-back.js");
     }
     private void loadJavascriptAsset(String filename){
