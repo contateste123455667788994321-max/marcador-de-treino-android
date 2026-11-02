@@ -95,7 +95,7 @@ public final class MainActivity extends Activity {
                         else if("pause".equals(cmd)){running.pause();sendRunService(RunTrackingService.PAUSE);response=runState();}
                         else if("resume".equals(cmd)){resumeRunWithPermission();response=runState();}
                         else if("finish".equals(cmd)){response=running.finish();sendRunService(RunTrackingService.FINISH);}
-                    }catch(Exception e){android.util.Log.w("MarcadorDeTreino","Comando de corrida",e);response="{\\"error\\":\\"Falha no GPS\\}" ;}
+                    }catch(Exception e){android.util.Log.w("MarcadorDeTreino","Comando de corrida",e);response="{}";}
                     result.confirm(response);
                     return true;
                 }
