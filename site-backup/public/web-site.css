@@ -1,0 +1,66 @@
+/* Site responsivo: somente navegação pelo navegador, nunca pelo APK. */
+html.mt-web{background:#080d08;scroll-behavior:smooth}
+.mt-web body{background:radial-gradient(ellipse at 80% 0,#172b13 0,transparent 42%),#080d08}
+#mt-web-topbar,#mt-web-sidebar{display:none}
+@media(min-width:840px){
+ .mt-web #mt-web-topbar{display:flex;align-items:center;justify-content:space-between;gap:20px;height:78px;padding:0 max(28px,calc((100vw - 1320px)/2 + 28px));position:sticky;top:0;z-index:100;background:#0c120deF;border-bottom:1px solid #2c4027;backdrop-filter:blur(18px)}
+ .mt-web .mt-site-brand{display:flex;align-items:center;gap:13px;color:#f3ffe9;text-decoration:none;min-width:0}
+ .mt-web .mt-site-brand-icon{display:grid;place-items:center;background:#263f18;width:45px;height:45px;flex-shrink:0;border:1px solid #639638;border-radius:14px;color:#a6ff00}
+ .mt-web .mt-site-brand-title{font:900 24px/0.9 'Barlow Condensed',Impact,sans-serif;text-transform:uppercase;letter-spacing:.3px}
+ .mt-web .mt-site-brand-title strong{color:#a6ff00}
+ .mt-web .mt-site-tagline{display:block;color:#99b18c;font-size:10px;letter-spacing:.2px;margin-top:6px}
+ .mt-web .mt-site-actions{display:flex;align-items:center;gap:14px}
+ .mt-web .mt-site-android{display:inline-flex;align-items:center;gap:8px;text-decoration:none;border:1px solid #668b44;border-radius:12px;padding:11px 16px;color:#d7ffbd;font-weight:800;font-size:12px;white-space:nowrap}
+ .mt-web .mt-site-android:hover{background:#23351c}
+ .mt-web #mt-web-sidebar{display:flex;position:fixed;top:100px;left:max(18px,calc((100vw - 1320px)/2 + 18px));width:248px;max-height:calc(100dvh - 120px);overflow-y:auto;flex-direction:column;background:linear-gradient(155deg,#1c2d18,#0d160e);border:1px solid #344e2c;border-radius:20px;padding:17px;box-shadow:0 16px 35px #0004;z-index:75;scrollbar-width:thin}
+ .mt-web #mt-web-sidebar .mt-web-caption{color:#a6ff00;font-weight:850;font-size:10px;letter-spacing:1.6px;padding:14px 12px 12px;text-transform:uppercase}
+ .mt-web #mt-web-sidebar button{display:flex;align-items:center;gap:13px;text-align:left;width:100%;border:0;border-radius:12px;background:transparent;color:#bdcdb8;font:700 13px Inter,system-ui,sans-serif;min-height:43px;padding:10px 12px;margin:2px 0;cursor:pointer}
+ .mt-web #mt-web-sidebar button:hover,.mt-web #mt-web-sidebar button[aria-current=page]{background:#263d20;color:#a6ff00}
+ .mt-web #mt-web-sidebar button[aria-current=page]{border:1px solid #5d8b42}
+ .mt-web #mt-web-sidebar .mt-web-symbol{width:24px;text-align:center;font-size:17px}
+ .mt-web #mt-web-sidebar .mt-web-note{margin-top:auto;padding:18px 12px 7px;border-top:1px solid #3b5133;color:#91a58b;font-size:10px;line-height:1.7}
+ .mt-web #app{width:calc(100% - 22px);max-width:1320px;margin:0 auto;padding-left:280px;min-height:calc(100dvh - 78px)}
+ .mt-web #bottom-nav{display:none!important}
+ .mt-web .app-header{height:73px;background:transparent;padding:14px 30px;border-bottom:1px solid #1c311b;position:sticky;top:78px;z-index:65;backdrop-filter:blur(12px);background-color:#0b110beA}
+ .mt-web .header-title{font-size:20px}
+ .mt-web #screen{padding:24px 30px 90px;max-width:1000px;min-height:calc(100dvh - 160px)}
+ .mt-web .home-hero{height:310px;border-radius:22px}
+ .mt-web .home-hero:after{content:'EVOLUA NO SEU RITMO';position:absolute;left:25px;bottom:30px;font:900 clamp(24px,3vw,40px)/1 'Barlow Condensed',Impact,sans-serif;color:#f5ffe9;text-shadow:0 3px 15px #000e;letter-spacing:.4px}
+ .mt-web .progress-home{margin-top:0}
+ .mt-web .exercise-grid{grid-template-columns:repeat(3,minmax(0,1fr));gap:15px}
+ .mt-web .tile-photo{height:172px}
+ .mt-web .home-primary-action,.mt-web .progress-home,.mt-web .steps-home,.mt-web .home-diet{box-shadow:0 8px 25px #0003}
+ .mt-web .music-hero{max-width:640px;margin-inline:auto}
+ .mt-web .music-playback-card,.mt-web .music-tools,.mt-web .music-note,.mt-web .music-queue,.mt-web .music-service-picker{max-width:760px;margin-left:auto;margin-right:auto}
+ .mt-web .subhead{margin-bottom:23px}
+ .mt-web .section-title{font-size:25px}
+ .mt-web .panel,.mt-web .home-primary-action,.mt-web .steps-home,.mt-web .home-diet{border-radius:19px}
+}
+@media(min-width:1100px){
+ .mt-web #screen:has(> .home-hero){display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:start;gap:18px}
+ .mt-web #screen:has(> .home-hero) > .home-hero{grid-column:1/-1}
+ .mt-web #screen:has(> .home-hero) > .progress-home{grid-column:1;grid-row:2}
+ .mt-web #screen:has(> .home-hero) > .home-primary-action{grid-column:2;grid-row:2;margin-top:0}
+ .mt-web #screen:has(> .home-hero) > .steps-home{grid-column:1;grid-row:3}
+ .mt-web #screen:has(> .home-hero) > .home-diet{grid-column:2;grid-row:3}
+ .mt-web #screen:has(> .home-hero) > .home-secondary{grid-column:1/-1}
+}
+@media(min-width:840px) and (max-width:1099px){
+ .mt-web #mt-web-sidebar{width:215px;left:14px}
+ .mt-web #app{padding-left:230px}
+ .mt-web #screen{padding:20px 24px 75px}
+ .mt-web .exercise-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:839px){
+ .mt-web body{background:#080b08}
+ .mt-web #mt-web-topbar{display:flex;align-items:center;justify-content:space-between;gap:10px;min-height:66px;padding:8px 13px;background:#101b0e;border-bottom:1px solid #33502a}
+ .mt-web .mt-site-brand{color:#f3ffea;display:flex;align-items:center;gap:8px;min-width:0}
+ .mt-web .mt-site-brand-icon{width:33px;height:33px;flex-shrink:0;background:#223d19;border:1px solid #496e31;border-radius:10px;display:grid;place-items:center}
+ .mt-web .mt-site-brand-icon svg{width:22px;height:22px}
+ .mt-web .mt-site-brand-title{font:900 17px/.92 'Barlow Condensed',Impact,sans-serif;letter-spacing:.15px;display:block}
+ .mt-web .mt-site-brand-title strong{color:#a6ff00}
+ .mt-web .mt-site-tagline{display:block;color:#8eaa83;font-size:8px;margin-top:4px}
+ .mt-web .mt-site-android{display:flex;align-items:center;justify-content:center;border:1px solid #527b31;border-radius:10px;padding:9px 8px;color:#d6ffae;font-size:10px;font-weight:800;white-space:nowrap;text-align:center;max-width:106px}
+ .mt-web #app{max-width:550px}
+ .mt-web #screen{padding-bottom:calc(108px + env(safe-area-inset-bottom))}
+}

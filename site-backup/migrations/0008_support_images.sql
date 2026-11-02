@@ -1,0 +1,1 @@
+ALTER TABLE app_support_messages ADD COLUMN IF NOT EXISTS image_key TEXT; ALTER TABLE app_support_messages ADD COLUMN IF NOT EXISTS image_mime TEXT;
