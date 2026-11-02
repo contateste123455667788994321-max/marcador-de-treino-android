@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><meta name="robots" content="noindex,nofollow"><title>Conta • Marcador de Treino</title>
+<style>
+:root{color-scheme:dark;font-family:system-ui,-apple-system,Segoe UI,Roboto,sans-serif}*{box-sizing:border-box}
+body{background:radial-gradient(ellipse at 50% 5%,#244016,#070a07 60%);color:#f6ffe9;margin:0;min-height:100svh;display:grid;place-items:center;padding:18px}
+article{background:linear-gradient(145deg,#1c271b,#0f160f);border:1px solid #435f32;border-radius:22px;padding:25px 23px;width:min(100%,420px);box-shadow:0 0 40px #a6ff0013}
+.logo{display:grid;place-items:center;width:64px;height:64px;margin:auto auto 15px;background:#1d3316;border-radius:17px;box-shadow:0 0 17px #a6ff003b}
+h1{text-align:center;margin:0 0 6px;font-size:24px}p{text-align:center;font-size:13px;color:#b6c6b1;line-height:1.5;margin:0 0 17px}
+label{font-size:12px;color:#d9e8d1;font-weight:650;display:block;margin:14px 0 7px}
+input,button{height:48px;width:100%;border-radius:12px;font:inherit}input{background:#10170f;color:#fff;padding:10px 13px;border:1px solid #536c45;outline:none}input:focus{border-color:#a6ff00}
+button{background:#a6ff00;color:#10220b;border:0;font-weight:850;margin-top:13px}button:disabled{opacity:.55}button.secondary{border:1px solid #47603a;background:transparent;color:#c9efb2}
+#message{margin:12px 0 0;min-height:22px;text-align:center;font-size:12px;color:#b8ff75}
+[hidden]{display:none!important}
+</style></head><body><article><div class="logo"><svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="#a6ff00" stroke-width="2.8" stroke-linecap="round"><path d="M3 9v6m4-9v12m10-12v12m4-9v6M3 12h18"/></svg></div><h1>Marcador de Treino</h1><p>Entre para salvar suas corridas com segurança na nuvem.</p>
+<div id="google-box" hidden><button type="button" id="google-enter" style="background:#eaf2e8;color:#182719;border:1px solid #d5e1d1;margin:0 0 14px;font-weight:800">Continuar com Google</button><p style="margin:0 0 12px;font-size:11px">Use sua conta Google para importar nome e foto no app.</p><p style="font-size:10px;margin:0 0 12px">ou entre por e-mail</p></div><form id="email-form"><label for="email">Seu e-mail</label><input id="email" type="email" required autocomplete="username webauthn" placeholder="seuemail@exemplo.com"><button id="send">Receber código</button></form>
+<form id="code-form" hidden><label for="code">Código enviado ao seu e-mail</label><input id="code" inputmode="numeric" autocomplete="one-time-code" maxlength="6" required pattern="[0-9]{6}" placeholder="000000"><button id="verify">Confirmar e entrar</button><button class="secondary" type="button" id="again">Alterar e-mail</button></form>
+<div id="signed" hidden><p id="signed-text"></p><button id="continue">Continuar para o aplicativo</button><button id="signout" class="secondary">Sair desta conta</button></div><div id="message" role="status" aria-live="polite"></div>
+</article><script>
+const $=id=>document.getElementById(id);const go=()=>{const p=new URLSearchParams(location.search).get('next')||'/';location.href=p.startsWith('/')&&!p.startsWith('//')?p:'/'};
+const msg=s=>$('message').textContent=s;
+async function appAuth(){if(!window.hatchable?.auth){msg('Autenticação temporariamente indisponível.');return null}return window.hatchable.auth}
+async function init(){const a=await appAuth();if(!a)return;const session=await a.getSession().catch(()=>null);if(session?.user){showAccount(session.user);return}const providers=await a.providers().catch(()=>['email']);$('google-box').hidden=!providers.includes('google')}
+function showAccount(u){$('email-form').hidden=true;$('code-form').hidden=true;$('signed').hidden=false;$('signed-text').textContent='Conectado como '+(u.email||'atleta')}
+$('google-enter').onclick=async()=>{const a=await appAuth();if(!a)return;try{a.signInWithGoogle({next:'/'})}catch(err){msg(err.message||'Login Google temporariamente indisponível.')}};
+$('email-form').onsubmit=async e=>{e.preventDefault();const a=await appAuth();if(!a)return;const b=$('send');b.disabled=true;msg('Enviando código...');try{await a.startLogin({email:$('email').value.trim()});$('email-form').hidden=true;$('code-form').hidden=false;msg('Código enviado! Confira seu e-mail.')}catch(err){msg(err.message||'Falha no envio.')}finally{b.disabled=false}};
+$('code-form').onsubmit=async e=>{e.preventDefault();const a=await appAuth();if(!a)return;const b=$('verify');b.disabled=true;msg('Verificando...');try{const session=await a.verifyCode({email:$('email').value.trim(),code:$('code').value.trim()});showAccount(session.user);msg('Entrou com sucesso!');setTimeout(go,550)}catch(err){msg(err.message||'Código inválido.')}finally{b.disabled=false}};
+$('again').onclick=()=>{$('code-form').hidden=true;$('email-form').hidden=false;msg('')};
+$('continue').onclick=go;$('signout').onclick=async()=>{await hatchable.auth.signOut();location.reload()};
+init();
+</script></body></html>
