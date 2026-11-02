@@ -146,6 +146,7 @@ public final class MainActivity extends Activity {
         loadJavascriptAsset("android-ui.js");
         loadJavascriptAsset("android-extras.js");
         loadJavascriptAsset("android-polish.js");
+        loadJavascriptAsset("android-service-visuals.js");
         loadJavascriptAsset("android-library-consult.js");
         loadJavascriptAsset("android-running.js");
         loadJavascriptAsset("android-run-cloud.js");
