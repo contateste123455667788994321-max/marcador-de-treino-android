@@ -9,6 +9,7 @@ function esc(x){return String(x||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&l
 function spotifyLogo(){return '<svg viewBox="0 0 100 100" width="69" height="69"><circle cx="50" cy="50" r="46" fill="#1ED760"/><path d="M22 38q32-11 65 8M27 52q26-9 53 6M32 65q22-6 41 5" stroke="#102010" stroke-width="7" stroke-linecap="round" fill="none"/></svg>'}
 function youtubeLogo(){return '<svg viewBox="0 0 100 100" width="69" height="69"><circle cx="50" cy="50" r="46" fill="#FF0033"/><circle cx="50" cy="50" r="27" fill="none" stroke="#fff" stroke-width="4"/><path d="M43 34 68 50 43 66Z" fill="#fff"/></svg>'}
 function mineLogo(){return '<svg viewBox="0 0 100 100" width="70" height="70" fill="none" aria-label="Minhas músicas"><circle cx="50" cy="50" r="44" stroke="#a6ff00" stroke-width="1.6" opacity=".8"/><path d="M51 30v31m0-31 20-5v31" stroke="#a6ff00" stroke-width="3.3" stroke-linecap="round" stroke-linejoin="round"/><ellipse cx="42" cy="64" rx="9" ry="6.4" stroke="#a6ff00" stroke-width="2.8" transform="rotate(-19 42 64)"/><ellipse cx="62" cy="58" rx="9" ry="6.4" stroke="#a6ff00" stroke-width="2.8" transform="rotate(-19 62 58)"/></svg>'}
+function mineTabLogo(){return '<svg viewBox="0 0 48 48" width="24" height="24" fill="none" aria-label="Músicas locais"><circle cx="24" cy="24" r="21" fill="#172b10" stroke="#a6ff00" stroke-width="1.2"/><path d="M24 14v17m0-17 11-2.9v16.8" stroke="#a6ff00" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><ellipse cx="19" cy="32" rx="6.4" ry="4.3" stroke="#a6ff00" stroke-width="1.9" transform="rotate(-17 19 32)"/><ellipse cx="30" cy="28.7" rx="6.4" ry="4.3" stroke="#a6ff00" stroke-width="1.9" transform="rotate(-17 30 28.7)"/></svg>'}
 function controlIcon(name){
  const paths={shuffle:'<path d="M3 7h3c5 0 6 10 12 10h3m-4-4 4 4-4 4M3 17h3c2 0 3-2 4-4m4-4c1-2 2-2 4-2h3m-4-4 4 4-4 4"/>',previous:'<path d="M5 5v14m14-14-11 7 11 7z"/>',play:'<path d="m8 5 11 7-11 7z"/>',pause:'<rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/>',next:'<path d="m5 5 11 7-11 7zM19 5v14"/>',repeat:'<path d="m17 2 4 4-4 4M3 11V9a3 3 0 0 1 3-3h18M7 22l-4-4 4-4m14-1v2a3 3 0 0 1-3 3H3"/>'};
  return '<svg viewBox="0 0 24 24" width="23" height="23" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">'+(paths[name]||paths.play)+'</svg>';
@@ -70,7 +71,7 @@ if(!original)return;
 original.style.display='none';
 if(!document.querySelector('.native-provider-tabs')){
 const tabs=document.createElement('div');tabs.className='native-provider-tabs';
-tabs.innerHTML='<button data-native-provider="spotify">'+spotifyLogo()+'Spotify</button><button data-native-provider="youtube">'+youtubeLogo()+'YouTube Music</button><button data-native-provider="local">'+mineLogo()+'Minhas músicas</button>';
+tabs.innerHTML='<button data-native-provider="spotify">'+spotifyLogo()+'Spotify</button><button data-native-provider="youtube">'+youtubeLogo()+'YouTube Music</button><button data-native-provider="local">'+mineTabLogo()+'Minhas músicas</button>';
 original.after(tabs);
 tabs.onclick=e=>{const b=e.target.closest('[data-native-provider]');if(b)switchTo(b.dataset.nativeProvider)};
 }
