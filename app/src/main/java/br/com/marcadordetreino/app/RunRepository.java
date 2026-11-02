@@ -137,6 +137,32 @@ final class RunRepository {
         pref.edit().putString("history",tail.toString()).putString("session","{}").commit();
         return result.toString();
     }
+    synchronized int importRun(JSONObject run){
+        if(run==null)return 0;
+        long started=run.optLong("startWall",0),ended=run.optLong("endedAt",0),duration=run.optLong("durationMs",-1);
+        JSONArray route=run.optJSONArray("route");
+        if(started<1_000_000_000_000L||ended<started||duration<0||duration>604800000L||
+            route==null||route.length()>8000)return 0;
+        for(int i=0;i<route.length();i++){
+            JSONArray point=route.optJSONArray(i);
+            if(point==null||point.length()<2||point.length()>4)return 0;
+            double lat=point.optDouble(0,Double.NaN),lon=point.optDouble(1,Double.NaN);
+            if(!Double.isFinite(lat)||!Double.isFinite(lon)||Math.abs(lat)>90||Math.abs(lon)>180)return 0;
+        }
+        JSONArray hist=history();
+        for(int i=0;i<hist.length();i++){
+            JSONObject old=hist.optJSONObject(i);
+            if(old!=null&&old.optLong("startWall",0)==started)return 0;
+        }
+        hist.put(run);
+        java.util.List<JSONObject> ordered=new java.util.ArrayList<>();
+        for(int i=0;i<hist.length();i++){JSONObject item=hist.optJSONObject(i);if(item!=null)ordered.add(item);}
+        ordered.sort((a,b)->Long.compare(a.optLong("startWall",0),b.optLong("startWall",0)));
+        JSONArray result=new JSONArray();
+        for(int i=Math.max(0,ordered.size()-80);i<ordered.size();i++)result.put(ordered.get(i));
+        pref.edit().putString("history",result.toString()).commit();
+        return 1;
+    }
     synchronized String historyJson(){
         JSONArray hist=history();
         JSONObject result=new JSONObject();
