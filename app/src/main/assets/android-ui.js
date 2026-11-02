@@ -37,6 +37,64 @@ setTimeout(refresh,250);
 };
 renderLibrary();update();
 }
+
+function siteMusicBlocks(show){
+ document.querySelectorAll('.music-hero,.music-playback-card,.music-tools,.music-queue,.music-external,.music-note').forEach(node=>{node.style.display=show?'':'none'});
+}
+function parseDeezerLink(value){
+ try{
+  const u=new URL(String(value||'').trim());
+  if(u.protocol!=='https:'||!['deezer.com','www.deezer.com'].includes(u.hostname))return null;
+  const bits=u.pathname.split('/').filter(Boolean);
+  const i=bits.findIndex(x=>['playlist','album','track','artist'].includes(x));
+  if(i<0||!/^[0-9]{1,18}$/.test(bits[i+1]||''))return null;
+  return {type:bits[i],id:bits[i+1],url:'https://www.deezer.com/'+bits[i]+'/'+bits[i+1]};
+ }catch(e){return null}
+}
+function deezerScreen(){
+ const screen=$('screen');if(!screen)return;
+ siteMusicBlocks(false);
+ if($('android-deezer-mode'))return;
+ const stored=localStorage.getItem('mt-deezer-link')||'';
+ const section=document.createElement('section');section.id='android-deezer-mode';
+ section.innerHTML='<div class="deezer-hero">'+
+ '<div class="deezer-hero-mark">'+deezerLogo()+'</div>'+
+ '<h2>Deezer</h2><p>Escute suas músicas e playlists no Deezer.</p>'+
+ '<a class="deezer-open" href="https://www.deezer.com/" rel="noopener">Abrir Deezer</a>'+
+ '<small>Para ouvir músicas completas, use sua conta no aplicativo Deezer.</small></div>'+
+ '<div class="deezer-widget-box"><h3>Minha música no Deezer</h3>'+
+ '<p>Cole o link de uma playlist, álbum, artista ou música para ouvir uma prévia aqui.</p>'+
+ '<form id="mt-deezer-form"><label for="mt-deezer-link">Link do Deezer</label>'+
+ '<input id="mt-deezer-link" type="url" inputmode="url" placeholder="https://www.deezer.com/playlist/..." value="'+esc(stored)+'" autocomplete="url">'+
+ '<button type="submit">Carregar prévia</button></form>'+
+ '<div id="mt-deezer-feedback" role="status" aria-live="polite"></div>'+
+ '<div id="mt-deezer-frame"></div>'+
+ '<small>O player oficial do Deezer pode limitar músicas a trechos de 30 segundos.</small>'+
+ '</div>';
+ screen.appendChild(section);
+ const form=$('mt-deezer-form'),link=$('mt-deezer-link'),feedback=$('mt-deezer-feedback'),frame=$('mt-deezer-frame');
+ function mount(item){
+  frame.replaceChildren();
+  const iframe=document.createElement('iframe');
+  iframe.title='Player oficial Deezer';
+  iframe.src='https://widget.deezer.com/widget/dark/'+item.type+'/'+item.id;
+  iframe.width='100%';iframe.height='315';
+  iframe.loading='lazy';iframe.style.border='0';iframe.style.borderRadius='13px';
+  iframe.allow='encrypted-media; clipboard-write';
+  iframe.referrerPolicy='strict-origin-when-cross-origin';
+  frame.appendChild(iframe);
+  feedback.textContent='Prévia carregada. Use os controles do próprio Deezer.';
+ }
+ form.onsubmit=e=>{
+  e.preventDefault();
+  const found=parseDeezerLink(link.value);
+  if(!found){feedback.textContent='Cole um link completo de música, playlist, álbum ou artista do deezer.com.';return}
+  localStorage.setItem('mt-deezer-link',found.url);
+  mount(found);
+ };
+ const existing=parseDeezerLink(stored);
+ if(existing)mount(existing);
+}
 function update(){
 if($('android-native-title'))$('android-native-title').textContent=trackTitle();
 if($('android-play')){$('android-play').innerHTML=controlIcon(current.playing?'pause':'play');$('android-play').setAttribute('aria-label',current.playing?'Pausar':'Reproduzir')}
@@ -51,40 +109,58 @@ if(typeof window.syncFloatingLock==='function')window.syncFloatingLock();
 window.MTAndroidMusicUpdate=raw=>{try{Object.assign(current,typeof raw==='string'?JSON.parse(raw):raw);update()}catch(e){console.warn(e)}};
 window.MTAndroidMusic={state:()=>current,playing:()=>current.playing};
 function switchTo(ch){
-if(!['spotify','youtube','local'].includes(ch))return;
-chosen=ch;
-if(ch==='local'){
- document.body.classList.add('mt-local-mode');
- if(window.MTAndroidSwitchProvider)window.MTAndroidSwitchProvider('local');
- localScreen();
-}else{
- document.body.classList.remove('mt-local-mode');
- $('android-local-mode')?.remove();
- const btn=document.querySelector('[data-provider="'+ch+'"]');if(btn)btn.click();
- setTimeout(patch,30);
-}
-document.querySelectorAll('[data-native-provider]').forEach(b=>b.classList.toggle('active',b.dataset.nativeProvider===chosen));
+ if(!['spotify','youtube','deezer','local'].includes(ch))return;
+ chosen=ch;
+ if(ch==='local'){
+  document.body.classList.add('mt-local-mode');
+  document.body.classList.remove('mt-deezer-mode');
+  $('android-deezer-mode')?.remove();
+  if(window.MTAndroidSwitchProvider)window.MTAndroidSwitchProvider('local');
+  localScreen();
+ }else if(ch==='deezer'){
+  document.body.classList.remove('mt-local-mode');
+  document.body.classList.add('mt-deezer-mode');
+  $('android-local-mode')?.remove();
+  deezerScreen();
+ }else{
+  document.body.classList.remove('mt-local-mode','mt-deezer-mode');
+  $('android-local-mode')?.remove();
+  $('android-deezer-mode')?.remove();
+  siteMusicBlocks(true);
+  const btn=document.querySelector('[data-provider="'+ch+'"]');
+  if(btn)btn.click();
+  setTimeout(patch,30);
+ }
+ document.querySelectorAll('[data-native-provider]').forEach(b=>b.classList.toggle('active',b.dataset.nativeProvider===chosen));
 }
 function patch(){
-if(!musicScreen()){document.body.classList.remove('mt-local-mode');return;}
+if(!musicScreen()){document.body.classList.remove('mt-local-mode','mt-deezer-mode');return;}
 let original=document.querySelector('.music-service-picker');
 if(!original)return;
 original.style.display='none';
 if(!document.querySelector('.native-provider-tabs')){
 const tabs=document.createElement('div');tabs.className='native-provider-tabs';
-tabs.innerHTML='<button data-native-provider="spotify">'+spotifyLogo()+'Spotify</button><button data-native-provider="youtube">'+youtubeLogo()+'YouTube Music</button><button data-native-provider="local">'+mineTabLogo()+'Minhas músicas</button>';
+tabs.innerHTML='<button data-native-provider="spotify">'+spotifyLogo()+'<span>Spotify</span></button><button data-native-provider="youtube">'+youtubeLogo()+'<span>YouTube Music</span></button><button data-native-provider="deezer">'+deezerLogo()+'<span>Deezer</span></button><button data-native-provider="local">'+mineTabLogo()+'<span>Minhas músicas</span></button>';
 original.after(tabs);
 tabs.onclick=e=>{const b=e.target.closest('[data-native-provider]');if(b)switchTo(b.dataset.nativeProvider)};
 }
 document.querySelectorAll('[data-native-provider]').forEach(b=>b.classList.toggle('active',b.dataset.nativeProvider===chosen));
-if(chosen==='local'){document.body.classList.add('mt-local-mode');if(!$('android-local-mode'))localScreen();}
-else {document.body.classList.remove('mt-local-mode');
- $('android-local-mode')?.remove();
+if(chosen==='local'){
+ document.body.classList.add('mt-local-mode');document.body.classList.remove('mt-deezer-mode');
+ $('android-deezer-mode')?.remove();if(!$('android-local-mode'))localScreen();
+}else if(chosen==='deezer'){
+ document.body.classList.add('mt-deezer-mode');document.body.classList.remove('mt-local-mode');
+ $('android-local-mode')?.remove();deezerScreen();
+}else {
+ document.body.classList.remove('mt-local-mode','mt-deezer-mode');
+ $('android-local-mode')?.remove();$('android-deezer-mode')?.remove();
+ siteMusicBlocks(true);
  const hero=document.querySelector('.spotify-inner>.icon,.yt-orb-inner>.icon');
  if(hero)hero.outerHTML=chosen==='spotify'?spotifyLogo():youtubeLogo();
 }
 }
 const style=document.createElement('style');style.id='mt-android-style';style.textContent="body.home-view .home-quick{display:none!important}\nbody.home-view .metric-fire{color:#a6ff00!important}\nbody.home-view .metric-fire svg{stroke:#a6ff00!important}\nbody.home-view .home-hero{height:278px!important;min-height:278px!important}\nbody.home-view .progress-home{margin-top:-116px!important}\n#bottom-nav{bottom:0!important;padding-bottom:calc(10px + env(safe-area-inset-bottom))!important;z-index:35!important}\nmain{padding-bottom:calc(102px + env(safe-area-inset-bottom))!important}\n.native-provider-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin:5px 0 12px}\n.native-provider-tabs button{min-height:46px;background:#191e17;border:1px solid #303d29;border-radius:13px;color:#c5d6b8;font-size:10px;font-weight:800;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px}\n.native-provider-tabs button.active{background:#a6ff00;color:#12220b;border-color:#b9ff50}\n.native-provider-tabs button svg{width:20px;height:20px}\n.native-player{padding:17px;border:1px solid #384c2d;border-radius:19px;text-align:center;background:radial-gradient(circle at 50% 28%,#335019,#101710 65%)}\n.native-player-orb{margin:0 auto 12px;width:190px;height:190px;display:grid;place-items:center;border-radius:50%;background:radial-gradient(circle,#0d180e 47%,#adff19 50%,#192e11 59%,#0a100a 69%);box-shadow:0 0 35px #a6ff0059}\n.native-player-orb-center{height:132px;width:132px;background:#102010;border-radius:50%;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;font-size:12px}\n.native-player-orb-center svg{width:73px;height:73px}\n.native-transport{display:flex;align-items:center;justify-content:space-around;gap:8px;margin:17px 0 7px}\n.native-transport button{background:none;border:0;color:#eef9e8;font-size:23px;min-width:40px;min-height:40px}\n.native-transport button.native-play{background:#a6ff00;color:#17270e;border-radius:50%;width:59px;height:59px;box-shadow:0 0 20px #a6ff0044}\n.native-transport button.selected{color:#a6ff00}\n.native-current{font-size:12px;color:#e6f4db;margin:8px 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\n.native-status{font-size:11px;color:#aec79e;margin:5px 0 0}\n.native-library{border-radius:17px;background:#151b14;border:1px solid #333f2d;padding:14px;margin:12px 0}\n.native-library h3{margin:0 0 10px;font-size:15px}\n.native-add{background:#a6ff00;border:0;border-radius:13px;padding:13px;width:100%;color:#17270e;font-size:12px;font-weight:900}\n.native-track{display:flex;align-items:center;gap:8px;padding:9px 1px;border-bottom:1px solid #2d3a26}\n.native-track button{color:#d5e7cc;background:none;border:0;font-size:12px}\n.native-track button:first-child{flex:1;text-align:left;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}\n.native-track.active button:first-child{color:#a6ff00}\n.native-track button:last-child{font-size:18px;color:#b7c7af}\n.native-library .caption{line-height:1.5}\n.native-mini{position:fixed;z-index:60;bottom:calc(77px + env(safe-area-inset-bottom));left:14px;right:14px;background:#20351a;border:1px solid #84c249;border-radius:13px;height:50px;display:flex;gap:9px;align-items:center;padding:9px 12px;box-shadow:0 6px 20px #000c;color:#a6ff00}\n.native-mini[hidden]{display:none!important}\n.native-mini strong{color:#e4f3dc;flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:11px}\n.native-mini button{background:none;border:0;color:#a6ff00;font-size:20px}\n.training-screen-locked .native-mini{display:none!important}\nbody:has(.native-mini:not([hidden])) .training-lock-bubble:not(.is-locked){bottom:calc(134px + env(safe-area-inset-bottom))!important}\n.anonymous-avatar{display:inline-flex;align-items:center;justify-content:center;border-radius:50%;border:1px solid #475a45;color:#b5c6b0;background:linear-gradient(#374337,#202a20)}";document.head.appendChild(style);
+const providersStyle=document.createElement('style');providersStyle.id='mt-four-music-providers';providersStyle.textContent="\n.native-provider-tabs{grid-template-columns:repeat(4,minmax(0,1fr))!important;gap:6px!important}\n.native-provider-tabs button{min-width:0!important;min-height:70px!important;padding:7px 2px!important;gap:5px!important;font-size:9.5px!important;line-height:1.13!important}\n.native-provider-tabs button>span{min-height:21px;display:flex;align-items:center;justify-content:center;text-align:center;overflow-wrap:break-word}\n.native-provider-tabs button svg{width:23px!important;height:23px!important;flex-shrink:0}\n.native-provider-tabs [data-native-provider=\"deezer\"] svg{filter:drop-shadow(0 0 4px #a335ff33)}\n.native-provider-tabs [data-native-provider=\"deezer\"].active svg{filter:drop-shadow(0 0 3px #a335ff80)}\n#android-deezer-mode{color:#efffe9}\n#android-deezer-mode .deezer-hero{background:radial-gradient(ellipse at 50% 16%,#30203c,#152017 56%,#0c130d 93%);border:1px solid #44543c;border-radius:23px;padding:22px 17px 19px;text-align:center;box-shadow:0 7px 24px #000b}\n#android-deezer-mode .deezer-hero-mark{width:96px;height:96px;margin:0 auto 10px;background:#181520;border:1px solid #634171;border-radius:50%;display:grid;place-items:center;box-shadow:0 0 22px #a335ff22}\n#android-deezer-mode .deezer-hero-mark svg{height:63px;width:63px}\n#android-deezer-mode .deezer-hero h2{font-size:22px;margin:2px 0 8px}\n#android-deezer-mode .deezer-hero p{font-size:12px;color:#c0d0b9;margin:0 0 15px}\n#android-deezer-mode .deezer-hero .deezer-open{background:#a6ff00;color:#12240a;font-size:13px;font-weight:900;border:0;border-radius:13px;min-height:48px;display:grid;place-items:center;text-decoration:none;box-shadow:0 0 15px #a6ff0030}\n#android-deezer-mode small{display:block;color:#a7b89f;font-size:10px;line-height:1.5;margin-top:11px}\n#android-deezer-mode .deezer-widget-box{background:linear-gradient(150deg,#1c291a,#111a12);border:1px solid #3b4e35;border-radius:21px;margin:14px 0;padding:16px}\n#android-deezer-mode .deezer-widget-box h3{margin:0 0 9px;font-size:17px}\n#android-deezer-mode .deezer-widget-box p{font-size:11px;color:#bac9b5;line-height:1.55;margin:0 0 15px}\n#mt-deezer-form label{display:block;font-size:11px;color:#d6e9cf;font-weight:750;margin:0 0 7px}\n#mt-deezer-form input{width:100%;box-sizing:border-box;background:#0d150d;border:1px solid #536649;color:#efffe5;padding:12px;border-radius:11px;font-size:12px;outline:none}\n#mt-deezer-form input:focus{border-color:#a6ff00}\n#mt-deezer-form button{background:#a6ff00;color:#14280a;border:0;border-radius:11px;padding:12px;margin-top:9px;width:100%;font-weight:900;font-size:12px}\n#mt-deezer-feedback{color:#b9ff77;min-height:16px;font-size:11px;margin:10px 0}\n#mt-deezer-frame iframe{width:100%;display:block;background:#111116}\n@media(max-width:365px){\n .native-provider-tabs{gap:4px!important}\n .native-provider-tabs button{font-size:8.5px!important;padding:5px 1px!important}\n}\n";document.head.appendChild(providersStyle);
 const mini=document.createElement('div');mini.id='android-native-mini';mini.className='native-mini';mini.hidden=true;mini.innerHTML='♫ <strong id="android-mini-title">Música tocando</strong><button id="android-mini-play">Ⅱ</button><button id="android-mini-open">↗</button>';
 document.body.appendChild(mini);
 $('android-mini-play').onclick=()=>{send('toggle');setTimeout(refresh,250)};
