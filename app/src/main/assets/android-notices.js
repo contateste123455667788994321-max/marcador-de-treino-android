@@ -169,7 +169,8 @@ async function heartbeat(){
   await fetch(endpoint,{method:'POST',credentials:'include',headers:{'Content-Type':'application/json'},body:JSON.stringify({deviceId:uuid()}),cache:'no-store'});
  }catch(e){}
 }
-if(window.MTCloudRuns?.listen)window.MTCloudRuns.listen(()=>{lastReply=null;messages=[];checkReply();if(isOpen()&&tab==='chat')render()});
+let lastChatUser=String(account().id||'visitor');
+if(window.MTCloudRuns?.listen)window.MTCloudRuns.listen(()=>{const next=String(account().id||'visitor');if(next===lastChatUser)return;lastChatUser=next;clearAttachment();lastReply=null;messages=[];checkReply();if(isOpen()&&tab==='chat')render()});
 window.MTNoticeBell={reload,open,back,isOpen};
 setTimeout(()=>{reload();heartbeat();checkReply()},1400);
 setInterval(()=>{if(!document.hidden){heartbeat();updateDot()}},80000);
