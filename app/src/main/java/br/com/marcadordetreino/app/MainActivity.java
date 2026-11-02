@@ -146,6 +146,7 @@ public final class MainActivity extends Activity {
         loadJavascriptAsset("android-extras.js");
         loadJavascriptAsset("android-polish.js");
         loadJavascriptAsset("android-running.js");
+        loadJavascriptAsset("android-back.js");
     }
     private void loadJavascriptAsset(String filename){
         try(InputStream is=getAssets().open(filename)){
@@ -368,5 +369,19 @@ public final class MainActivity extends Activity {
         web.post(()->web.evaluateJavascript("window.MTStepsNativeUpdate&&window.MTStepsNativeUpdate("+JSONObject.quote(data)+")",null));
     }
     @Override protected void onResume(){super.onResume();if(web!=null){updateBrowser();updateMusicBrowser();}}
-    @Override public void onBackPressed(){if(web!=null&&web.canGoBack())web.goBack();else super.onBackPressed();}
+    private long lastHomeBackMs=0L;
+    @Override public void onBackPressed(){
+        if(web==null){super.onBackPressed();return;}
+        web.evaluateJavascript("(function(){try{return window.MTAndroidBack?window.MTAndroidBack():'home'}catch(e){return 'home'}})()",result->{
+            if(isFinishing())return;
+            if("\"handled\"".equals(result))return;
+            long now=android.os.SystemClock.elapsedRealtime();
+            if(now-lastHomeBackMs<2200){
+                finish();
+            }else{
+                lastHomeBackMs=now;
+                android.widget.Toast.makeText(this,"Pressione Voltar novamente para sair",android.widget.Toast.LENGTH_SHORT).show();
+            }
+        });
+    }
 }
