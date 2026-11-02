@@ -119,17 +119,19 @@ function mapBox(){return '<div class="run-map-box"><div id="mt-run-map"></div><d
 function content(){
  const on=!!state.active,running=!!state.running;
  let buttons='';
- if(view==='history'||view==='summary')buttons='<div class="run-actions single"><button class="run-btn start" id="mt-run-new">'+svg('play')+' Nova corrida</button></div>';
+ if(view==='history'||view==='summary'||view==='replay')buttons='<div class="run-actions single"><button class="run-btn start" id="mt-run-new">'+svg('play')+' '+(view==='replay'?'Voltar ao histórico':'Nova corrida')+'</button></div>';
  else if(!on)buttons='<div class="run-actions single"><button class="run-btn start" id="mt-run-start">'+svg('play')+' COMEÇAR</button></div>';
  else buttons='<div class="run-actions"><button class="run-btn stop" id="mt-run-finish">'+svg('stop')+' FINALIZAR</button><button class="run-btn '+(running?'pause':'start')+'" id="mt-run-pause">'+svg(running?'pause':'play')+' '+(running?'PAUSAR':'RETOMAR')+'</button></div>';
  const summary=view==='summary'&&lastFinished?'<div class="run-summary-card"><h2>Corrida concluída! 💚</h2><p>Bom trabalho! Veja seu resultado abaixo.</p><div class="run-best-grid"><div class="run-best"><small>Distância</small><b>'+distanceLabel(lastFinished.distanceMeters||0)+' km</b></div><div class="run-best"><small>Tempo</small><b>'+clockShort(lastFinished.durationMs||0)+'</b></div><div class="run-best"><small>Ritmo médio</small><b>'+paceLabel(lastFinished.paceSecKm||0)+' /km</b></div><div class="run-best"><small>Calorias estimadas</small><b>'+Math.round(lastFinished.calories||0)+' kcal</b></div></div></div>':'';
+ const replaySummary=view==='replay'&&replayRun?'<div class="run-summary-card"><h2>Replay da sua corrida</h2><p>O ponto verde percorre a rota do começo ao fim.</p><div class="run-best-grid"><div class="run-best"><small>Distância</small><b>'+distanceLabel(replayRun.distanceMeters)+' km</b></div><div class="run-best"><small>Tempo real</small><b>'+clockShort(replayRun.durationMs)+'</b></div><div class="run-best"><small>Ritmo</small><b>'+paceLabel(replayRun.paceSecKm)+' /km</b></div><div class="run-best"><small>Calorias estimadas</small><b>'+Math.round(replayRun.calories||0)+' kcal</b></div></div></div>':'';
+ const replayControls=view==='replay'?'<div class="run-replay-controls"><div class="run-replay-row"><strong>▶ Replay acelerado</strong><span id="mt-replay-time">0:00</span></div><input id="mt-replay-progress" type="range" min="0" max="1000" value="0" aria-label="Posição do replay"><div class="run-replay-row"><button id="mt-replay-restart">↺ Reiniciar</button><button id="mt-replay-toggle">'+svg('play')+' Reproduzir replay</button><button id="mt-replay-speed">1×</button></div></div>':'';
  const historySection=(view==='history'||view==='summary')?historyMarkup():'';
  return '<div class="run-shell"><div class="run-bar"><button class="run-close" id="mt-run-close" aria-label="Voltar">'+svg('back',23)+'</button><strong>◢ MODO CORRIDA</strong><button class="run-close" id="mt-run-history-toggle" aria-label="Histórico">'+svg('clock',21)+'</button></div>'+
  '<div class="run-time" id="mt-run-time">'+msClock(state.durationMs||0)+'</div><div class="run-time-label">TEMPO DE CORRIDA</div>'+
  '<div class="run-stats"><div class="run-stat"><strong id="mt-run-distance">'+distanceLabel(state.distanceMeters)+' </strong><small>KM</small></div><div class="run-stat"><strong id="mt-run-pace">'+paceLabel(state.paceSecKm)+'</strong><small>RITMO (MIN/KM)</small></div><div class="run-stat"><strong id="mt-run-calories">'+Math.round(state.calories||0)+'</strong><small>KCAL</small></div></div>'+
- (view==='history'?'':mapBox())+summary+buttons+
+ (view==='history'?'':mapBox())+summary+replaySummary+replayControls+buttons+
  '<p class="run-note" id="mt-run-note">'+(on?(running?'Gravando corrida em tempo real.':'Corrida pausada. Seus resultados estão salvos.'):'O GPS desenha sua rota e estima o ritmo e as calorias.')+'</p>'+
- (historySection||'<div class="run-privacy">'+svg('shield',20)+'<span>Seu trajeto fica salvo neste celular. O mapa usa OpenStreetMap com internet. A contagem continua com a tela bloqueada enquanto a corrida estiver ativa.</span></div>')+'</div>'
+ (historySection||'<div class="run-privacy">'+svg('shield',20)+'<span>'+ (view==='replay'?'A linha verde mostra o caminho percorrido. Somente você pode consultar a rota.':'Seu trajeto fica salvo neste celular. O mapa usa OpenStreetMap com internet. A contagem continua com a tela bloqueada enquanto a corrida estiver ativa.') +'</span></div>')+'</div>'
 }
 function open(mode){
  const overlay=$('mt-run-overlay');if(!overlay)return;
@@ -140,19 +142,19 @@ function open(mode){
  render();
  if(view==='run'&&!state.active)promptNative('locate');
 }
-function close(){opened=false;$('mt-run-overlay').hidden=true;document.body.style.overflow='';disposeMap()}
-function disposeMap(){if(map){try{map.remove()}catch{}map=null;routeLine=null;positionMarker=null}}
+function close(){stopReplay();opened=false;$('mt-run-overlay').hidden=true;document.body.style.overflow='';disposeMap()}
+function disposeMap(){if(map){try{map.remove()}catch{}map=null;routeLine=null;ghostLine=null;positionMarker=null}}
 function render(){
  const overlay=$('mt-run-overlay');if(!opened||!overlay)return;
  disposeMap();
  overlay.innerHTML=content();
  attach();
  update();
- if(view!=='history')ensureMap();
+ if(view!=='history')ensureMap();if(view==='replay')renderReplayUI();
 }
 function attach(){
- $('mt-run-close').onclick=close;
- $('mt-run-history-toggle').onclick=()=>{readHistory();view=view==='history'?'run':'history';render()};
+ $('mt-run-close').onclick=()=>{if(view==='replay'){stopReplay();view='history';readHistory();render()}else close()};
+ $('mt-run-history-toggle').onclick=()=>{stopReplay();if(view==='history'){view='run';render()}else openHistory()};
  const start=$('mt-run-start');if(start)start.onclick=()=>{
   if(!state.gpsEnabled){alert('Ative a localização (GPS) do celular para registrar a corrida.');return}
   const result=promptNative('start');if(result)state=result;view='run';poll();render();
@@ -160,20 +162,26 @@ function attach(){
  const finish=$('mt-run-finish');if(finish)finish.onclick=()=>{
   if(!confirm('Finalizar esta corrida e salvar o resultado?'))return;
   const result=promptNative('finish');
-  if(result&&result.durationMs!==undefined){lastFinished=result;readHistory();view='summary';poll();render()}
+  if(result&&result.durationMs!==undefined){lastFinished=result;readHistory();view='summary';poll();render();window.MTCloudRuns?.onFinished?.()}
  };
  const pause=$('mt-run-pause');if(pause)pause.onclick=()=>{const command=state.running?'pause':'resume';const result=promptNative(command);if(result)state=result;poll();render()};
- const again=$('mt-run-new');if(again)again.onclick=()=>{lastFinished=null;view='run';render()};
+ const again=$('mt-run-new');if(again)again.onclick=()=>{stopReplay();lastFinished=null;if(view==='replay'){openHistory()}else{view='run';render()}};
+ const cloud=$('mt-run-cloud-open');if(cloud)cloud.onclick=()=>window.MTCloudRuns?.show?.();
+ document.querySelectorAll('[data-replay-run]').forEach(button=>button.onclick=()=>openRecordedRun(button.dataset.replayRun));
+ const retry=$('mt-replay-restart');if(retry)retry.onclick=()=>{stopReplay();replayProgress=0;drawReplay();startReplay()};
+ const toggle=$('mt-replay-toggle');if(toggle)toggle.onclick=toggleReplay;
+ const speed=$('mt-replay-speed');if(speed)speed.onclick=()=>{replaySpeed=replaySpeed===1?2:replaySpeed===2?4:1;renderReplayUI()};
+ const seek=$('mt-replay-progress');if(seek)seek.oninput=()=>{replayProgress=Math.max(0,Math.min(1,Number(seek.value)/1000));drawReplay();renderReplayUI()};
 }
 function update(){
  if(!opened)return;
- const e=$('mt-run-time');if(e)e.textContent=msClock(currentElapsed());
- const distance=$('mt-run-distance');if(distance)distance.textContent=distanceLabel(state.distanceMeters);
- const pace=$('mt-run-pace');if(pace)pace.textContent=paceLabel(state.paceSecKm);
- const cal=$('mt-run-calories');if(cal)cal.textContent=Math.round(state.calories||0);
+ const e=$('mt-run-time');if(e)e.textContent=msClock(view==='replay'?Number(replayRun?.durationMs||0)*replayProgress:currentElapsed());
+ const distance=$('mt-run-distance');if(distance)distance.textContent=distanceLabel(view==='replay'?(replayRun?.distanceMeters||0)*replayProgress:state.distanceMeters);
+ const pace=$('mt-run-pace');if(pace)pace.textContent=paceLabel(view==='replay'?replayRun?.paceSecKm:state.paceSecKm);
+ const cal=$('mt-run-calories');if(cal)cal.textContent=Math.round(view==='replay'?(replayRun?.calories||0)*replayProgress:state.calories||0);
  const gps=$('mt-run-gps-text'),dot=$('mt-run-gps-dot');
- if(gps)gps.textContent=!state.gpsEnabled?'Ative o GPS':!state.permissionGranted?'Permissão necessária':state.gpsFix?'GPS conectado':Number.isFinite(state.previewLat)?'Localização obtida':'Buscando sinal GPS';
- if(dot)dot.classList.toggle('good',!!state.gpsFix||Number.isFinite(state.previewLat));
+ if(gps)gps.textContent=view==='replay'?'REPLAY DO TRAJETO':!state.gpsEnabled?'Ative o GPS':!state.permissionGranted?'Permissão necessária':state.gpsFix?'GPS conectado':Number.isFinite(state.previewLat)?'Localização obtida':'Buscando sinal GPS';
+ if(dot)dot.classList.toggle('good',view==='replay'||!!state.gpsFix||Number.isFinite(state.previewLat));
 }
 function ensureLeaflet(){
  if(window.L)return Promise.resolve(window.L);
