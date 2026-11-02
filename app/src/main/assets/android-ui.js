@@ -129,6 +129,7 @@ function switchTo(ch){
   siteMusicBlocks(true);
   const btn=document.querySelector('[data-provider="'+ch+'"]');
   if(btn)btn.click();
+  patch();
   setTimeout(patch,30);
  }
  document.querySelectorAll('[data-native-provider]').forEach(b=>b.classList.toggle('active',b.dataset.nativeProvider===chosen));
