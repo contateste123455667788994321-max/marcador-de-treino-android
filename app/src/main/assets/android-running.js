@@ -100,12 +100,19 @@ function renderReplayUI(){
 
 function historyMarkup(){
  const records=allRuns();
- return '<div class="run-summary-card"><h2>Seus recordes</h2><p>Sua evolução registrada pelo GPS.</p>'+
- '<div class="run-best-grid"><div class="run-best"><small>Maior distância</small><b>'+distanceLabel(history.bestDistance||0)+' km</b></div><div class="run-best"><small>Maior duração</small><b>'+clockShort(history.bestDuration||0)+'</b></div>'+
- '<div class="run-best"><small>Melhor ritmo</small><b>'+paceLabel(history.bestPace||0)+' /km</b></div><div class="run-best"><small>Corridas concluídas</small><b>'+records.length+'</b></div></div></div>'+
- '<h3 class="run-h3">Histórico de corridas</h3><div class="run-history">'+(records.length?records.slice(0,15).map((r,i)=>{
- const when=r.endedAt?new Date(r.endedAt).toLocaleDateString('pt-BR'):'Corrida';
- return '<div class="run-history-row"><div><strong>'+when+'</strong><small>'+clockShort(r.durationMs||0)+' • '+Math.round(r.calories||0)+' kcal</small></div><span>'+distanceLabel(r.distanceMeters||0)+' km<br>'+paceLabel(r.paceSecKm||0)+' min/km</span></div>';
+ const bestDistance=Math.max(0,...records.map(x=>Number(x.distanceMeters)||0));
+ const bestDuration=Math.max(0,...records.map(x=>Number(x.durationMs)||0));
+ const bestPace=Math.min(...records.filter(x=>(Number(x.distanceMeters)||0)>=500&&(Number(x.paceSecKm)||0)>0).map(x=>Number(x.paceSecKm)),Infinity);
+ const clouds=window.MTCloudRuns?.status?.();
+ return '<div class="run-summary-card"><h2>Seus recordes</h2><p>Cada corrida salva com trajeto e evolução.</p>'+
+ '<div class="run-best-grid"><div class="run-best"><small>Maior distância</small><b>'+distanceLabel(bestDistance)+' km</b></div><div class="run-best"><small>Maior duração</small><b>'+clockShort(bestDuration)+'</b></div>'+
+ '<div class="run-best"><small>Melhor ritmo</small><b>'+paceLabel(Number.isFinite(bestPace)?bestPace:0)+' /km</b></div><div class="run-best"><small>Corridas concluídas</small><b>'+records.length+'</b></div></div></div>'+
+ '<div class="run-history-cloud-row"><h3 class="run-h3">Histórico de corridas</h3><button id="mt-run-cloud-open" aria-label="Gerenciar backup das corridas">☁ '+(clouds?.opted?'Nuvem ativa':'Backup')+'</button></div>'+
+ '<p class="run-note" id="mt-run-cloud-loading">'+(cloudLoading?'Atualizando histórico da nuvem...':clouds?.loggedIn?'Toque em uma corrida para assistir ao trajeto.':'Salvo neste celular. Ative a nuvem para recuperar em outro.')+'</p>'+
+ '<div class="run-history">'+(records.length?records.slice(0,100).map(r=>{
+ const when=r.endedAt?new Date(Number(r.endedAt)).toLocaleDateString('pt-BR'):'Corrida';
+ const source=r.cloudOnly?' ☁':r.backedUp?' ✓':'';
+ return '<button class="run-history-row run-history-tap" data-replay-run="'+Number(r.startWall)+'" aria-label="Rever corrida de '+when+'"><div><strong>'+when+source+'</strong><small>'+clockShort(r.durationMs||0)+' • '+Math.round(r.calories||0)+' kcal</small></div><span>'+distanceLabel(r.distanceMeters||0)+' km<br>'+paceLabel(r.paceSecKm||0)+' min/km<br>▶ Rever rota</span></button>';
  }).join(''):'<p class="run-note">Nenhuma corrida registrada ainda.</p>')+'</div>';
 }
 function mapBox(){return '<div class="run-map-box"><div id="mt-run-map"></div><div class="run-map-empty" id="mt-run-map-empty">'+svg('map',44)+'<strong>Aguardando localização</strong><small>Ative o GPS e permita o acesso para desenhar sua rota.</small></div><div class="run-gps"><span class="gps-dot" id="mt-run-gps-dot"></span><span id="mt-run-gps-text">GPS aguardando</span></div></div>'}
