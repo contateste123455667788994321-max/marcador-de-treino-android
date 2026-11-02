@@ -6,7 +6,7 @@ let opted=localStorage.getItem(KEY)==='yes', user=null,runs=[],online=true,busy=
 const listeners=new Set();
 const auth=()=>window.hatchable?.auth||null;
 const esc=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function status(){return {opted,loggedIn:!!user,email:user?.email||'',runs:runs.slice(),busy,online,error:lastError,lastSync}}
+function status(){return {opted,loggedIn:!!user,email:user?.email||'',name:user?.name||'',image:user?.image||'',id:user?.id||'',runs:runs.slice(),busy,online,error:lastError,lastSync}}
 function tell(){listeners.forEach(cb=>{try{cb(status())}catch(e){console.warn(e)}})}
 function listen(cb){listeners.add(cb);return()=>listeners.delete(cb)}
 async function request(url,opt={}){
@@ -105,7 +105,16 @@ function renderDialog(){
 async function show(){dialogOpen=true;create().hidden=false;renderDialog();await refresh();renderDialog()}
 function hide(){dialogOpen=false;const el=$('mt-cloud-dialog');if(el)el.hidden=true}
 async function onFinished(){if(opted)await uploadLocal()}
-window.MTCloudRuns={status,listen,refresh,load,full,remove,uploadLocal,show,hide,onFinished,enable};
+async function providers(){try{return await auth()?.providers()||['email']}catch(e){return ['email']}}
+async function signInGoogle(){
+ const available=await providers();
+ if(!available.includes('google'))return {ok:false,message:'O login com Google precisa ser habilitado pelo proprietário em um domínio próprio. A opção de e-mail já funciona.'};
+ try{auth().signInWithGoogle({next:'/'});return {ok:true}}
+ catch(e){return {ok:false,message:e.message||'Não foi possível abrir o login com Google neste aparelho.'}}
+}
+function hasPopup(){return dialogOpen}
+
+window.MTCloudRuns={status,listen,refresh,load,full,remove,uploadLocal,show,hide,onFinished,enable,providers,signInGoogle,hasPopup,user:()=>user};
 setTimeout(async()=>{await refresh();if(opted&&user)await uploadLocal()},800);
 document.addEventListener('visibilitychange',()=>{if(!document.hidden&&opted&&Date.now()-lastSync>180000)uploadLocal()});
 })();
