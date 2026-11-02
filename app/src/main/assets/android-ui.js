@@ -8,7 +8,7 @@ function send(action){return prompt('mt-music:'+action,'')||''}
 function esc(x){return String(x||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function spotifyLogo(){return '<svg viewBox="0 0 100 100" width="69" height="69"><circle cx="50" cy="50" r="46" fill="#1ED760"/><path d="M22 38q32-11 65 8M27 52q26-9 53 6M32 65q22-6 41 5" stroke="#102010" stroke-width="7" stroke-linecap="round" fill="none"/></svg>'}
 function youtubeLogo(){return '<svg viewBox="0 0 100 100" width="69" height="69"><circle cx="50" cy="50" r="46" fill="#FF0033"/><circle cx="50" cy="50" r="27" fill="none" stroke="#fff" stroke-width="4"/><path d="M43 34 68 50 43 66Z" fill="#fff"/></svg>'}
-function mineLogo(){return '<svg viewBox="0 0 100 100" width="69" height="69"><circle cx="50" cy="50" r="46" fill="#A6FF00"/><path d="M44 30v33l25-5V25z" fill="#10220B"/><circle cx="35" cy="66" r="11" fill="#10220B"/><circle cx="60" cy="59" r="11" fill="#10220B"/></svg>'}
+function mineLogo(){return '<svg viewBox="0 0 100 100" width="70" height="70"><circle cx="50" cy="50" r="46" fill="#a6ff00"/><circle cx="50" cy="50" r="33" fill="#0c190c"/><path d="M46 32v30m0-30 23-5v28" stroke="#a6ff00" stroke-width="6" stroke-linecap="round" stroke-linejoin="round" fill="none"/><ellipse cx="36" cy="64" rx="10" ry="7" fill="#a6ff00"/><ellipse cx="59" cy="58" rx="10" ry="7" fill="#a6ff00"/></svg>'}
 function musicScreen(){return $('header-text')?.textContent==='Music'}
 function trackTitle(){return current.tracks[current.index]?.name||'Nenhuma música selecionada'}
 function renderLibrary(){
