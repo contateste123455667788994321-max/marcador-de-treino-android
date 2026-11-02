@@ -11,16 +11,23 @@ import android.net.Uri;
 import android.os.*;
 import android.webkit.*;
 import org.json.JSONObject;
+import java.util.ArrayList;
+import java.util.List;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
+import android.provider.Settings;
+import android.widget.EditText;
 
 /** Aplicativo Android que usa a interface do Marcador de Treino no WebView. */
 public final class MainActivity extends Activity {
     private static final String SITE="marcador-de-treino-ckcg.hatchable.site";
-    private static final int PHYSICAL_PERMISSION=1901,NOTIFICATION_PERMISSION=1902;
+    private static final int PHYSICAL_PERMISSION=1901,NOTIFICATION_PERMISSION=1902,PICK_AUDIO=1903,FILE_CHOOSER=1904;
     private WebView web;
     private StepRepository steps;
     private boolean available;
     private boolean startAfterPermission;
     private boolean onboardingScheduled;
+    private ValueCallback<Uri[]> webFileChooser;
 
     @Override public void onCreate(Bundle b){
         super.onCreate(b);
@@ -45,6 +52,7 @@ public final class MainActivity extends Activity {
                 Uri uri=Uri.parse(url);
                 if(!"https".equals(uri.getScheme())||!SITE.equals(uri.getHost()))return;
                 installBridge();
+                installNativeUi();
                 updateBrowser();
                 if(!onboardingScheduled){
                     onboardingScheduled=true;
@@ -60,11 +68,39 @@ public final class MainActivity extends Activity {
             }
         });
         web.setWebChromeClient(new WebChromeClient(){
+            @Override public boolean onShowFileChooser(WebView w, ValueCallback<Uri[]> callback, FileChooserParams params){
+                if(webFileChooser!=null)webFileChooser.onReceiveValue(null);
+                webFileChooser=callback;
+                try{
+                    Intent intent=params.createIntent();
+                    startActivityForResult(intent,FILE_CHOOSER);
+                    return true;
+                }catch(Exception e){webFileChooser.onReceiveValue(null);webFileChooser=null;return false;}
+            }
             @Override public boolean onJsPrompt(WebView view,String originUrl,String message,String defaultValue,JsPromptResult result){
                 Uri uri=Uri.parse(originUrl==null?"":originUrl);
-                if(!"https".equals(uri.getScheme())||!SITE.equals(uri.getHost())||
-                   message==null||!message.startsWith("mt-native:"))
+                if(!"https".equals(uri.getScheme())||!SITE.equals(uri.getHost())||message==null
+                    ||(!message.startsWith("mt-native:")&&!message.startsWith("mt-music:")))
                     return super.onJsPrompt(view,originUrl,message,defaultValue,result);
+                if(message.startsWith("mt-music:")){
+                    String command=message.substring("mt-music:".length()),answer="";
+                    try{
+                        if("getState".equals(command))answer=MusicPlaybackService.getState(MainActivity.this);
+                        else if("pick".equals(command))pickAudio();
+                        else if(command.startsWith("play:"))sendMusic(MusicPlaybackService.PLAY,Integer.parseInt(command.substring(5)));
+                        else if("play".equals(command))sendMusic(MusicPlaybackService.PLAY,-1);
+                        else if("pause".equals(command))sendMusic(MusicPlaybackService.PAUSE,-1);
+                        else if("toggle".equals(command))sendMusic(MusicPlaybackService.TOGGLE,-1);
+                        else if("next".equals(command))sendMusic(MusicPlaybackService.NEXT,-1);
+                        else if("previous".equals(command))sendMusic(MusicPlaybackService.PREVIOUS,-1);
+                        else if("shuffle".equals(command))sendMusic(MusicPlaybackService.SHUFFLE,-1);
+                        else if("repeat".equals(command))sendMusic(MusicPlaybackService.REPEAT,-1);
+                        else if("stop".equals(command))sendMusic(MusicPlaybackService.STOP,-1);
+                        else if(command.startsWith("remove:")){new MusicRepository(MainActivity.this).remove(Integer.parseInt(command.substring(7)));updateMusicBrowser();}
+                    }catch(Exception e){answer="error";}
+                    result.confirm(answer);
+                    return true;
+                }
                 String action=message.substring("mt-native:".length()),answer="";
                 try{
                     if("getState".equals(action))answer=steps.json(available);
@@ -81,6 +117,64 @@ public final class MainActivity extends Activity {
         setContentView(web);
         web.loadUrl("https://"+SITE+"/?native=1");
         if(steps.enabled()&&hasPhysicalPermission())startServiceTracking();
+    }
+
+    private void installNativeUi(){
+        try(InputStream is=getAssets().open("android-ui.js")){
+            byte[] bytes=new byte[is.available()];
+            int read=0;
+            while(read<bytes.length){int count=is.read(bytes,read,bytes.length-read);if(count<0)break;read+=count;}
+            String script=new String(bytes,0,read,StandardCharsets.UTF_8);
+            web.evaluateJavascript(script,null);
+        }catch(Exception e){android.util.Log.w("MarcadorDeTreino","Falha ao abrir recursos nativos",e);}
+    }
+    private void pickAudio(){
+        Intent intent=new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.setType("audio/*");
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE,true);
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION|Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION);
+        try{startActivityForResult(intent,PICK_AUDIO);}
+        catch(Exception e){new AlertDialog.Builder(this).setTitle("Arquivos indisponíveis")
+            .setMessage("Não foi possível abrir a biblioteca de músicas neste celular.")
+            .setPositiveButton("OK",null).show();}
+    }
+    private void sendMusic(String command,int index){
+        Intent service=new Intent(this,MusicPlaybackService.class).setAction(command);
+        if(index>=0)service.putExtra("index",index);
+        try{
+            if(MusicPlaybackService.STOP.equals(command)){
+                startService(service);
+            }else if(Build.VERSION.SDK_INT>=26)startForegroundService(service);
+            else startService(service);
+        }catch(Exception e){android.util.Log.w("MarcadorDeTreino","Falha ao enviar comando ao player",e);}
+        web.postDelayed(this::updateMusicBrowser,450);
+    }
+    private void updateMusicBrowser(){
+        if(web==null)return;
+        String data=MusicPlaybackService.getState(this);
+        web.post(()->web.evaluateJavascript("window.MTAndroidMusicUpdate&&window.MTAndroidMusicUpdate("+JSONObject.quote(data)+")",null));
+    }
+    @Override protected void onActivityResult(int request,int code,Intent data){
+        super.onActivityResult(request,code,data);
+        if(request==FILE_CHOOSER){
+            if(webFileChooser!=null){webFileChooser.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(code,data));webFileChooser=null;}
+            return;
+        }
+        if(request!=PICK_AUDIO)return;
+        if(code==RESULT_OK&&data!=null){
+            List<Uri> uris=new ArrayList<>();
+            if(data.getClipData()!=null){
+                for(int i=0;i<data.getClipData().getItemCount();i++)uris.add(data.getClipData().getItemAt(i).getUri());
+            }else if(data.getData()!=null)uris.add(data.getData());
+            List<Uri> persisted=new ArrayList<>();
+            for(Uri uri:uris){
+                try{getContentResolver().takePersistableUriPermission(uri,Intent.FLAG_GRANT_READ_URI_PERMISSION);persisted.add(uri);}
+                catch(SecurityException ignored){}
+            }
+            if(!persisted.isEmpty())new MusicRepository(this).add(this,persisted);
+        }
+        updateMusicBrowser();
     }
     private boolean hasPhysicalPermission(){
         return Build.VERSION.SDK_INT<29||checkSelfPermission(Manifest.permission.ACTIVITY_RECOGNITION)==PackageManager.PERMISSION_GRANTED;
@@ -153,6 +247,6 @@ public final class MainActivity extends Activity {
         final String data=steps.json(available);
         web.post(()->web.evaluateJavascript("window.MTStepsNativeUpdate&&window.MTStepsNativeUpdate("+JSONObject.quote(data)+")",null));
     }
-    @Override protected void onResume(){super.onResume();if(web!=null)updateBrowser();}
+    @Override protected void onResume(){super.onResume();if(web!=null){updateBrowser();updateMusicBrowser();}}
     @Override public void onBackPressed(){if(web!=null&&web.canGoBack())web.goBack();else super.onBackPressed();}
 }
