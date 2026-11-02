@@ -8,6 +8,8 @@ import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.hardware.*;
 import android.location.LocationManager;
+import android.location.Location;
+import android.location.LocationListener;
 import android.net.Uri;
 import android.os.*;
 import android.webkit.*;
@@ -27,6 +29,8 @@ public final class MainActivity extends Activity {
     private StepRepository steps;
     private RunRepository running;
     private boolean startRunAfterPermission=false;
+    private boolean previewRunAfterPermission=false;
+    private Location previewRunLocation=null;
     private boolean available;
     private boolean startAfterPermission;
     private boolean onboardingScheduled;
@@ -92,6 +96,7 @@ public final class MainActivity extends Activity {
                         if("state".equals(cmd))response=runState();
                         else if("history".equals(cmd))response=running.historyJson();
                         else if("start".equals(cmd)){startRunWithPermission();response=runState();}
+                        else if("locate".equals(cmd)){requestRunPreview();response=runState();}
                         else if("pause".equals(cmd)){running.pause();sendRunService(RunTrackingService.PAUSE);response=runState();}
                         else if("resume".equals(cmd)){resumeRunWithPermission();response=runState();}
                         else if("finish".equals(cmd)){response=running.finish();sendRunService(RunTrackingService.FINISH);}
@@ -164,7 +169,47 @@ public final class MainActivity extends Activity {
         org.json.JSONObject json;
         try{json=new org.json.JSONObject(running.json(gpsEnabled(),hasRunPermission()));}
         catch(Exception e){return "{}";}
+        if(hasRunPermission()){
+            Location loc=previewRunLocation;
+            if(loc==null){
+                try{
+                    LocationManager mgr=(LocationManager)getSystemService(LOCATION_SERVICE);
+                    Location gps=mgr.getLastKnownLocation(LocationManager.GPS_PROVIDER);
+                    Location network=mgr.getLastKnownLocation(LocationManager.NETWORK_PROVIDER);
+                    loc=gps!=null&&network!=null?(gps.getTime()>network.getTime()?gps:network):gps!=null?gps:network;
+                }catch(Exception ignored){}
+            }
+            if(loc!=null&&System.currentTimeMillis()-loc.getTime()<5*60*1000L&&
+              loc.hasAccuracy()&&loc.getAccuracy()<180f){
+                try{
+                    json.put("previewLat",loc.getLatitude());
+                    json.put("previewLon",loc.getLongitude());
+                    json.put("previewAccuracy",loc.getAccuracy());
+                }catch(Exception ignored){}
+            }
+        }
         return json.toString();
+    }
+    private void requestRunPreview(){
+        if(!hasRunPermission()){
+            previewRunAfterPermission=true;
+            requestPermissions(new String[]{Manifest.permission.ACCESS_FINE_LOCATION,Manifest.permission.ACCESS_COARSE_LOCATION},RUN_GPS_PERMISSION);
+            return;
+        }
+        try{
+            LocationManager mgr=(LocationManager)getSystemService(LOCATION_SERVICE);
+            if(mgr==null)return;
+            String provider=mgr.isProviderEnabled(LocationManager.GPS_PROVIDER)?LocationManager.GPS_PROVIDER:
+                mgr.isProviderEnabled(LocationManager.NETWORK_PROVIDER)?LocationManager.NETWORK_PROVIDER:null;
+            if(provider==null)return;
+            mgr.requestSingleUpdate(provider,new LocationListener(){
+                @Override public void onLocationChanged(Location location){
+                    if(location!=null)previewRunLocation=location;
+                }
+                @Override public void onProviderEnabled(String p){}
+                @Override public void onProviderDisabled(String p){}
+            },getMainLooper());
+        }catch(Exception e){android.util.Log.w("MarcadorDeTreino","GPS para visualização do mapa",e);}
     }
     private void startRunWithPermission(){
         if(running.isActive()){sendRunService(RunTrackingService.START);return;}
@@ -289,6 +334,8 @@ public final class MainActivity extends Activity {
     @Override public void onRequestPermissionsResult(int request,String[] perms,int[] results){
         super.onRequestPermissionsResult(request,perms,results);
         if(request==RUN_GPS_PERMISSION){
+            if(previewRunAfterPermission&&hasRunPermission())requestRunPreview();
+            previewRunAfterPermission=false;
             if(startRunAfterPermission&&hasRunPermission()){
                 if(running.isActive()){running.resume();sendRunService(RunTrackingService.RESUME);}
                 else {running.start(steps.weight());sendRunService(RunTrackingService.START);}
