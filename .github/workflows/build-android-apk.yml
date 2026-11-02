@@ -6,7 +6,7 @@ on:
 permissions:
   contents: write
 jobs:
-  apk-debug:
+  apk:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -25,25 +25,44 @@ jobs:
           echo "Usando $SDKMANAGER"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" 'platforms;android-35' 'build-tools;35.0.0'
-      - name: Compilar APK
+      - name: Compilar APK de teste
         run: gradle --no-daemon --stacktrace :app:assembleDebug
-      - name: Disponibilizar APK
+      - name: Guardar APK apenas para testes
         uses: actions/upload-artifact@v4
         with:
-          name: Marcador-de-Treino-Android-APK
+          name: Marcador-de-Treino-APK-TESTE-nao-atualizar
           path: app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
-      - name: Publicar APK para download direto
+      - name: Publicar APK oficial com assinatura permanente
         env:
           GH_TOKEN: ${{ github.token }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        shell: bash
         run: |
+          set -euo pipefail
+          if [[ -z "$ANDROID_KEYSTORE_BASE64" || -z "$ANDROID_KEYSTORE_PASSWORD" || -z "$ANDROID_KEY_ALIAS" || -z "$ANDROID_KEY_PASSWORD" ]]; then
+            echo "::notice::APK oficial não publicado: configure as quatro secrets de assinatura no GitHub."
+            exit 0
+          fi
+          export ANDROID_KEYSTORE_FILE="$RUNNER_TEMP/marcador-treino-upload.jks"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE_FILE"
+          chmod 600 "$ANDROID_KEYSTORE_FILE"
+          gradle --no-daemon --stacktrace :app:assembleRelease
           APP_VERSION=$(sed -n "s/.*versionName '\([^']*\)'.*/\1/p" app/build.gradle | head -n 1)
-          if [ -z "$APP_VERSION" ]; then echo "Versão não encontrada"; exit 1; fi
+          test -n "$APP_VERSION"
+          APK_PATH="app/build/outputs/apk/release/app-release.apk"
+          test -s "$APK_PATH"
+          APKSIGNER="${ANDROID_HOME:-/usr/local/lib/android/sdk}/build-tools/35.0.0/apksigner"
+          "$APKSIGNER" verify --verbose "$APK_PATH"
           TAG="v$APP_VERSION"
           APK_NAME="Marcador_de_Treino_Android_${APP_VERSION//./_}.apk"
-          cp app/build/outputs/apk/debug/app-debug.apk "$APK_NAME"
+          cp "$APK_PATH" "$APK_NAME"
+          sha256sum "$APK_NAME"
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "$APK_NAME" --clobber
           else
-            gh release create "$TAG" "$APK_NAME" --title "Marcador de Treino Android $APP_VERSION" --notes "Versão Android $APP_VERSION (APK de teste). Faça backup dos dados antes de substituir a instalação anterior." --latest --target "$GITHUB_SHA"
+            gh release create "$TAG" "$APK_NAME" --title "Marcador de Treino Android $APP_VERSION" --notes "APK oficial assinado com chave permanente. As versões de teste anteriores podem exigir backup e uma reinstalação única." --latest --target "$GITHUB_SHA"
           fi

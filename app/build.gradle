@@ -6,8 +6,26 @@ android {
         applicationId 'br.com.marcadordetreino.app'
         minSdk 26
         targetSdk 35
-        versionCode 15
-        versionName '1.9.1'
+        versionCode 16
+        versionName '1.9.2'
+    }
+    // APKs públicos são assinados apenas quando os secrets estão presentes no GitHub.
+    // Nunca coloque a chave privada ou as senhas neste repositório.
+    signingConfigs {
+        release {
+            def keyFile = System.getenv('ANDROID_KEYSTORE_FILE')
+            if (keyFile) {
+                storeFile file(keyFile)
+                storePassword System.getenv('ANDROID_KEYSTORE_PASSWORD')
+                keyAlias System.getenv('ANDROID_KEY_ALIAS')
+                keyPassword System.getenv('ANDROID_KEY_PASSWORD')
+            }
+        }
+    }
+    buildTypes {
+        release {
+            if (System.getenv('ANDROID_KEYSTORE_FILE')) signingConfig signingConfigs.release
+        }
     }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
 }

@@ -126,7 +126,8 @@ public final class MainActivity extends Activity {
                 }
                 String action=message.substring("mt-native:".length()),answer="";
                 try{
-                    if("getState".equals(action))answer=steps.json(available);
+                    if("appInfo".equals(action))answer=nativeAppInfo();
+                    else if("getState".equals(action))answer=steps.json(available);
                     else if("start".equals(action))requestStart();
                     else if("stop".equals(action))stopService();
                     else if("requestNotifications".equals(action))requestNotifications();
@@ -138,7 +139,7 @@ public final class MainActivity extends Activity {
             }
         });
         setContentView(web);
-        web.loadUrl("https://"+SITE+"/?native=1");
+        web.loadUrl("https://"+SITE+"/?native=1&build="+installedBuildCode()+"&version="+Uri.encode(installedVersionName()));
         if(steps.enabled()&&hasPhysicalPermission())startServiceTracking();
     }
 
@@ -165,6 +166,28 @@ public final class MainActivity extends Activity {
             String script=new String(bytes,0,read,StandardCharsets.UTF_8);
             web.evaluateJavascript(script,null);
         }catch(Exception e){android.util.Log.w("MarcadorDeTreino","Falha ao carregar "+filename,e);}
+    }
+
+    /** Identificação real da versão instalada; nunca depende dos dados do usuário. */
+    private long installedBuildCode(){
+        try{
+            android.content.pm.PackageInfo info=getPackageManager().getPackageInfo(getPackageName(),0);
+            return Build.VERSION.SDK_INT>=28?info.getLongVersionCode():info.versionCode;
+        }catch(Exception e){return 0L;}
+    }
+    private String installedVersionName(){
+        try{
+            android.content.pm.PackageInfo info=getPackageManager().getPackageInfo(getPackageName(),0);
+            return info.versionName==null?"":info.versionName;
+        }catch(Exception e){return "";}
+    }
+    private String nativeAppInfo(){
+        try{
+            return new org.json.JSONObject()
+                .put("versionCode",installedBuildCode())
+                .put("versionName",installedVersionName())
+                .put("packageName",getPackageName()).toString();
+        }catch(Exception e){return "{}";}
     }
 
     private boolean hasRunPermission(){
