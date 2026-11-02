@@ -199,7 +199,7 @@ function open(mode){
  render();
  if(view==='run'&&!state.active)promptNative('locate');
 }
-function close(){cancelCountdown();stopReplay();opened=false;$('mt-run-overlay').hidden=true;document.body.style.overflow='';disposeMap()}
+function close(){hideFinishDialog();cancelCountdown();stopReplay();opened=false;$('mt-run-overlay').hidden=true;document.body.style.overflow='';disposeMap()}
 function disposeMap(){if(map){try{map.remove()}catch{}map=null;routeLine=null;ghostLine=null;positionMarker=null;mapBaseLayer=null;mapVectorLayer=null}}
 function render(){
  const overlay=$('mt-run-overlay');if(!opened||!overlay)return;
@@ -210,15 +210,47 @@ function render(){
  update();
  if(view!=='history')ensureMap();if(view==='replay')renderReplayUI();
 }
+function hideFinishDialog(){
+ const box=$('mt-run-finish-dialog');
+ if(box)box.remove();
+}
+function showFinishDialog(){
+ if(!opened||!state.active||$('mt-run-finish-dialog'))return;
+ const box=document.createElement('div');
+ box.id='mt-run-finish-dialog';
+ box.setAttribute('role','dialog');
+ box.setAttribute('aria-modal','true');
+ box.setAttribute('aria-labelledby','mt-run-finish-title');
+ box.innerHTML='<section class="mt-run-finish-panel">'+
+ '<div class="mt-run-finish-symbol">'+svg('stop',31)+'</div>'+
+ '<h2 id="mt-run-finish-title">Finalizar corrida?</h2>'+
+ '<p>Deseja encerrar e salvar os dados e o percurso desta corrida?</p>'+
+ '<div class="mt-run-finish-buttons">'+
+ '<button id="mt-run-finish-cancel" type="button">Continuar corrida</button>'+
+ '<button id="mt-run-finish-save" type="button">Salvar corrida</button>'+
+ '</div></section>';
+ $('mt-run-overlay').appendChild(box);
+ $('mt-run-finish-cancel').onclick=hideFinishDialog;
+ box.addEventListener('click',e=>{if(e.target===box)hideFinishDialog()});
+ $('mt-run-finish-save').onclick=()=>{
+  const btn=$('mt-run-finish-save');if(btn)btn.disabled=true;
+  const result=promptNative('finish');
+  if(result&&result.durationMs!==undefined){
+   hideFinishDialog();
+   lastFinished=result;readHistory();view='summary';poll();render();
+   window.MTCloudRuns?.onFinished?.();
+  }else{
+   if(btn)btn.disabled=false;
+   const para=box.querySelector('p');
+   if(para)para.textContent='Não foi possível salvar a corrida. Tente novamente.';
+  }
+ };
+}
 function attach(){
  $('mt-run-close').onclick=()=>{if(view==='replay'){stopReplay();view='history';readHistory();render()}else close()};
  $('mt-run-history-toggle').onclick=()=>{stopReplay();if(view==='history'){view='run';render()}else openHistory()};
  const start=$('mt-run-start');if(start)start.onclick=beginRunAfterCountdown;
- const finish=$('mt-run-finish');if(finish)finish.onclick=()=>{
-  if(!confirm('Finalizar esta corrida e salvar o resultado?'))return;
-  const result=promptNative('finish');
-  if(result&&result.durationMs!==undefined){lastFinished=result;readHistory();view='summary';poll();render();window.MTCloudRuns?.onFinished?.()}
- };
+ const finish=$('mt-run-finish');if(finish)finish.onclick=showFinishDialog;
  const pause=$('mt-run-pause');if(pause)pause.onclick=()=>{const command=state.running?'pause':'resume';const result=promptNative(command);if(result)state=result;poll();render()};
  const again=$('mt-run-new');if(again)again.onclick=()=>{stopReplay();lastFinished=null;if(view==='replay'){openHistory()}else{view='run';render()}};
  const cloud=$('mt-run-cloud-open');if(cloud)cloud.onclick=()=>window.MTCloudRuns?.show?.();
@@ -386,6 +418,7 @@ function decorateHome(){
 }
 const replayStyle=document.createElement('style');replayStyle.id='mt-android-replay-css';replayStyle.textContent="\n#mt-run-overlay .run-history-cloud-row{display:flex;align-items:center;justify-content:space-between;gap:5px;margin:5px 14px}\n#mt-run-overlay .run-history-cloud-row .run-h3{margin:10px 0 5px}\n#mt-run-overlay .run-history-cloud-row button{padding:8px 10px;border-radius:11px;border:1px solid #547d34;color:#c6ff97;background:#1b2c19;font-size:11px;font-weight:850}\n#mt-run-overlay .run-history-tap{width:100%;background:none;text-align:left;color:#f4ffef;border-left:0;border-right:0;border-top:0;border-radius:0;cursor:pointer}\n#mt-run-overlay .run-history-tap:active{background:#273c1e}\n#mt-run-overlay .run-history-tap span{color:#a6ff00!important}\n#mt-run-overlay .run-replay-controls{border:1px solid #496b30;background:linear-gradient(130deg,#1d3219,#101b10);padding:13px;border-radius:15px;margin:0 12px 12px}\n#mt-run-overlay .run-replay-row{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:3px 0 8px}\n#mt-run-overlay .run-replay-row strong{font-size:12px;color:#d6ffc2}\n#mt-run-overlay .run-replay-row>span{font-size:11px;color:#bed6b4}\n#mt-run-overlay .run-replay-row button{display:flex;align-items:center;justify-content:center;gap:5px;min-height:37px;padding:9px;border:1px solid #4b683c;background:#1f351d;color:#d0ffb8;border-radius:10px;font-size:11px;font-weight:850}\n#mt-run-overlay #mt-replay-toggle{background:#a6ff00;border-color:#a6ff00;color:#18260d;flex:1.5}\n#mt-run-overlay #mt-replay-speed{min-width:49px}\n#mt-run-overlay #mt-replay-progress{width:100%;accent-color:#a6ff00;height:25px;margin:1px 0 8px;background:transparent}\n";document.head.appendChild(replayStyle);
 const runFullscreenCss=document.createElement('style');runFullscreenCss.id='mt-run-full-map';runFullscreenCss.textContent="\n#mt-run-overlay[data-view=\"run\"]{height:100dvh;overflow:hidden}\n#mt-run-overlay[data-view=\"run\"] .run-shell{height:100%;min-height:0;padding-bottom:calc(12px + env(safe-area-inset-bottom));display:flex;flex-direction:column;overflow:hidden}\n#mt-run-overlay[data-view=\"run\"] .run-bar{padding-top:10px;padding-bottom:1px;flex:none}\n#mt-run-overlay[data-view=\"run\"] .run-time{font-size:clamp(40px,12vw,59px);margin:3px auto 0;flex:none}\n#mt-run-overlay[data-view=\"run\"] .run-time-label{flex:none}\n#mt-run-overlay[data-view=\"run\"] .run-stats{flex:none;padding:9px 12px 10px}\n#mt-run-overlay[data-view=\"run\"] .run-map-box{\n flex:1 1 auto;min-height:190px;height:auto;max-height:none;\n margin:0 9px 10px;border:1px solid #30482a;border-radius:14px;\n}\n#mt-run-overlay[data-view=\"run\"] .run-actions{flex:none;margin:1px 10px 3px;gap:12px}\n#mt-run-overlay[data-view=\"run\"] .run-actions button{min-height:54px;border-radius:14px}\n#mt-run-overlay[data-view=\"run\"] .run-note{margin:3px 12px 5px;flex:none;font-size:10px}\n#mt-run-overlay[data-view=\"run\"] .run-privacy{display:none!important}\n#mt-run-overlay[data-view=\"run\"] #mt-run-map{background:#d9e5db}\n#mt-run-overlay[data-view=\"run\"] .run-map-empty{background:radial-gradient(circle,#1f321e,#0e180d 70%)}\n#mt-run-overlay[data-view=\"run\"] .run-location-dot{background:#1689fd!important;border:3px solid #f7ffff!important;box-shadow:0 0 0 8px #1689fd40,0 0 11px #1689fd66!important}\n#mt-run-overlay[data-view=\"replay\"] .run-location-dot{background:#a6ff00}\n#mt-run-overlay[data-view=\"summary\"] .run-location-dot{background:#2189fd}\n#mt-run-overlay .leaflet-container{background:#dbe6db!important}\n#mt-run-overlay .leaflet-tile-pane{filter:none!important}\n#mt-run-overlay .leaflet-control-zoom{border:1px solid #44663b!important;border-radius:8px!important;overflow:hidden}\n#mt-run-overlay .leaflet-control-zoom a{background:#172517!important;color:#beff77!important;border:0!important}\n@media(max-height:680px){\n #mt-run-overlay[data-view=\"run\"] .run-time{font-size:39px}\n #mt-run-overlay[data-view=\"run\"] .run-stats{padding:5px 10px}\n #mt-run-overlay[data-view=\"run\"] .run-map-box{min-height:130px}\n #mt-run-overlay[data-view=\"run\"] .run-actions button{min-height:46px}\n}\n";document.head.appendChild(runFullscreenCss);
+const finishCss=document.createElement('style');finishCss.id='mt-run-finish-confirm-css';finishCss.textContent="\n#mt-run-finish-dialog{position:absolute;inset:0;z-index:2600;display:flex;align-items:center;justify-content:center;padding:20px;background:#030904db;backdrop-filter:blur(7px)}\n#mt-run-finish-dialog .mt-run-finish-panel{width:min(100%,400px);background:linear-gradient(150deg,#21321c,#101b10);border:1px solid #597c3e;border-radius:22px;padding:24px 19px 20px;text-align:center;box-shadow:0 0 40px #9fff001a,0 18px 48px #000b}\n#mt-run-finish-dialog .mt-run-finish-symbol{height:60px;width:60px;border-radius:18px;margin:0 auto 14px;display:grid;place-items:center;background:#2f261f;color:#ffc2ae;border:1px solid #7c4b3e}\n#mt-run-finish-dialog h2{font-size:23px;font-weight:900;color:#f3ffe9;margin:0 0 8px}\n#mt-run-finish-dialog p{font-size:13px;line-height:1.55;color:#bacdaf;margin:0 0 20px}\n#mt-run-finish-dialog .mt-run-finish-buttons{display:grid;grid-template-columns:1fr 1fr;gap:9px}\n#mt-run-finish-dialog button{border-radius:12px;border:1px solid #496740;background:#20351c;color:#e1ffd6;min-height:49px;padding:10px 7px;font-size:12px;font-weight:850}\n#mt-run-finish-dialog #mt-run-finish-save{background:#a6ff00;color:#142509;border-color:#b8ff5d}\n#mt-run-finish-dialog button:disabled{opacity:.55}\n";document.head.appendChild(finishCss);
 const countdownCss=document.createElement('style');countdownCss.id='mt-run-countdown-css';countdownCss.textContent="\n#mt-run-overlay .mt-run-start-mask{position:fixed;inset:0;z-index:2400;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;background:#051006ee;backdrop-filter:blur(7px);color:#efffe9}\n#mt-run-overlay .mt-run-countdown-number{font-size:clamp(90px,31vw,150px);font-weight:1000;color:#acff15;line-height:1;filter:drop-shadow(0 0 23px #a6ff00a5);font-variant-numeric:tabular-nums}\n#mt-run-overlay .mt-run-start-mask strong{letter-spacing:2px;font-size:20px}\n#mt-run-overlay .mt-run-start-mask span{font-size:12px;color:#bbd9af}\n#mt-run-overlay .mt-run-start-mask button{border:1px solid #567b3d;color:#dcffd5;background:#263a23;border-radius:12px;margin:10px auto;padding:11px 28px;font-weight:800}\n";document.head.appendChild(countdownCss);
 const overlay=document.createElement('section');overlay.id='mt-run-overlay';overlay.setAttribute('role','dialog');overlay.setAttribute('aria-label','Modo Corrida');overlay.hidden=true;document.body.appendChild(overlay);
 const screen=$('screen');
@@ -394,5 +427,5 @@ window.addEventListener('pagehide',()=>{if(opened&&state.active)promptNative('st
 setInterval(()=>{if(!document.hidden){decorateHome();if(opened){update()}}},1000);
 setInterval(()=>{if(!document.hidden&&opened){poll()}},2500);
 poll();decorateHome();
-window.MTRunning={open,close,state:()=>state,isOpen:()=>opened,back:()=>{if(!opened)return false;if(countdownLayer){cancelCountdown();return true}if(view==='replay'){stopReplay();openHistory();return true}if(view!=='run'){view='run';render();return true}close();return true}};
+window.MTRunning={open,close,state:()=>state,isOpen:()=>opened,back:()=>{if(!opened)return false;if($('mt-run-finish-dialog')){hideFinishDialog();return true}if(countdownLayer){cancelCountdown();return true}if(view==='replay'){stopReplay();openHistory();return true}if(view!=='run'){view='run';render();return true}close();return true}};
 })();
