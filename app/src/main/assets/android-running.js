@@ -21,6 +21,62 @@ let view='run',opened=false,lastFinished=null,elapsedBase=0,lastElapsedTick=Date
 let leaflet=null,map=null,routeLine=null,ghostLine=null,positionMarker=null,mapUnavailable=false,mapLoading=false;
 let replayRun=null,replayPlaying=false,replayProgress=0,replaySpeed=1,replayFrame=0,replayLastTick=0,cloudLoading=false;
 const replayDuration=22000;
+let countdownTimer=null,countdownToken=0,countdownLayer=null,countdownAudio=null;
+function launchBeep(freq,long=false){
+ try{
+  const Audio=window.AudioContext||window.webkitAudioContext;
+  if(!Audio)return;
+  countdownAudio=countdownAudio||new Audio();
+  if(countdownAudio.state==='suspended')countdownAudio.resume().catch(()=>{});
+  const oscillator=countdownAudio.createOscillator(),gain=countdownAudio.createGain(),t=countdownAudio.currentTime;
+  oscillator.type='sine';oscillator.frequency.setValueAtTime(freq,t);
+  gain.gain.setValueAtTime(0.001,t);
+  gain.gain.exponentialRampToValueAtTime(0.14,t+0.025);
+  gain.gain.exponentialRampToValueAtTime(0.001,t+(long?0.4:0.17));
+  oscillator.connect(gain);gain.connect(countdownAudio.destination);
+  oscillator.start(t);oscillator.stop(t+(long?0.41:0.18));
+ }catch(e){console.warn('Som de largada indisponível:',e)}
+}
+function cancelCountdown(){
+ countdownToken++;
+ if(countdownTimer!==null){clearTimeout(countdownTimer);countdownTimer=null}
+ if(countdownLayer){countdownLayer.remove();countdownLayer=null}
+}
+function beginRunAfterCountdown(){
+ if(!opened||view!=='run'||state.active||countdownLayer)return;
+ if(!state.gpsEnabled){alert('Ative a localização (GPS) do celular para registrar a corrida.');return}
+ if(!state.permissionGranted){
+  promptNative('locate');
+  alert('Autorize o acesso ao GPS e toque em Começar novamente.');
+  return;
+ }
+ const mask=document.createElement('div');mask.className='mt-run-start-mask';mask.setAttribute('role','status');mask.setAttribute('aria-live','assertive');
+ mask.innerHTML='<div class="mt-run-countdown-number" id="mt-countdown-number">3</div><strong>PREPARE-SE!</strong><span>Seu tempo começa depois da largada.</span><button type="button" id="mt-cancel-countdown">Cancelar</button>';
+ $('mt-run-overlay').append(mask);countdownLayer=mask;
+ mask.querySelector('#mt-cancel-countdown').onclick=cancelCountdown;
+ const token=++countdownToken;let value=3;
+ function next(){
+  if(token!==countdownToken||!opened||view!=='run')return;
+  const label=$('mt-countdown-number');if(!label)return;
+  if(value>0){
+   label.textContent=String(value);
+   launchBeep(value===1?850:620);
+   value--;countdownTimer=setTimeout(next,1000);
+   return;
+  }
+  label.textContent='VAI!';
+  launchBeep(1080,true);
+  countdownTimer=setTimeout(()=>{
+   if(token!==countdownToken||!opened||view!=='run')return;
+   cancelCountdown();
+   const result=promptNative('start');if(result)state=result;
+   poll();render();
+   if(!state.active)console.warn('Corrida não iniciou; confira permissão de localização');
+  },450);
+ }
+ next();
+}
+
 function promptNative(command){
  try{
   const s=window.prompt('mt-run:'+command,'');
@@ -142,7 +198,7 @@ function open(mode){
  render();
  if(view==='run'&&!state.active)promptNative('locate');
 }
-function close(){stopReplay();opened=false;$('mt-run-overlay').hidden=true;document.body.style.overflow='';disposeMap()}
+function close(){cancelCountdown();stopReplay();opened=false;$('mt-run-overlay').hidden=true;document.body.style.overflow='';disposeMap()}
 function disposeMap(){if(map){try{map.remove()}catch{}map=null;routeLine=null;ghostLine=null;positionMarker=null}}
 function render(){
  const overlay=$('mt-run-overlay');if(!opened||!overlay)return;
@@ -156,10 +212,7 @@ function render(){
 function attach(){
  $('mt-run-close').onclick=()=>{if(view==='replay'){stopReplay();view='history';readHistory();render()}else close()};
  $('mt-run-history-toggle').onclick=()=>{stopReplay();if(view==='history'){view='run';render()}else openHistory()};
- const start=$('mt-run-start');if(start)start.onclick=()=>{
-  if(!state.gpsEnabled){alert('Ative a localização (GPS) do celular para registrar a corrida.');return}
-  const result=promptNative('start');if(result)state=result;view='run';poll();render();
- };
+ const start=$('mt-run-start');if(start)start.onclick=beginRunAfterCountdown;
  const finish=$('mt-run-finish');if(finish)finish.onclick=()=>{
   if(!confirm('Finalizar esta corrida e salvar o resultado?'))return;
   const result=promptNative('finish');
@@ -208,6 +261,7 @@ async function ensureMap(){
   const L=await ensureLeaflet();
   if(!opened||view==='history'||map||!$('mt-run-map'))return;
   map=L.map('mt-run-map',{zoomControl:false,attributionControl:true,preferCanvas:true});
+  if(map.attributionControl)map.attributionControl.setPrefix(false);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> colaboradores'}).addTo(map);
   L.control.zoom({position:'bottomright'}).addTo(map);
   if(view==='replay'){
@@ -265,7 +319,8 @@ function decorateHome(){
  card.onclick=()=>{poll();open('run')};
 }
 const replayStyle=document.createElement('style');replayStyle.id='mt-android-replay-css';replayStyle.textContent="\n#mt-run-overlay .run-history-cloud-row{display:flex;align-items:center;justify-content:space-between;gap:5px;margin:5px 14px}\n#mt-run-overlay .run-history-cloud-row .run-h3{margin:10px 0 5px}\n#mt-run-overlay .run-history-cloud-row button{padding:8px 10px;border-radius:11px;border:1px solid #547d34;color:#c6ff97;background:#1b2c19;font-size:11px;font-weight:850}\n#mt-run-overlay .run-history-tap{width:100%;background:none;text-align:left;color:#f4ffef;border-left:0;border-right:0;border-top:0;border-radius:0;cursor:pointer}\n#mt-run-overlay .run-history-tap:active{background:#273c1e}\n#mt-run-overlay .run-history-tap span{color:#a6ff00!important}\n#mt-run-overlay .run-replay-controls{border:1px solid #496b30;background:linear-gradient(130deg,#1d3219,#101b10);padding:13px;border-radius:15px;margin:0 12px 12px}\n#mt-run-overlay .run-replay-row{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:3px 0 8px}\n#mt-run-overlay .run-replay-row strong{font-size:12px;color:#d6ffc2}\n#mt-run-overlay .run-replay-row>span{font-size:11px;color:#bed6b4}\n#mt-run-overlay .run-replay-row button{display:flex;align-items:center;justify-content:center;gap:5px;min-height:37px;padding:9px;border:1px solid #4b683c;background:#1f351d;color:#d0ffb8;border-radius:10px;font-size:11px;font-weight:850}\n#mt-run-overlay #mt-replay-toggle{background:#a6ff00;border-color:#a6ff00;color:#18260d;flex:1.5}\n#mt-run-overlay #mt-replay-speed{min-width:49px}\n#mt-run-overlay #mt-replay-progress{width:100%;accent-color:#a6ff00;height:25px;margin:1px 0 8px;background:transparent}\n";document.head.appendChild(replayStyle);
-const runFullscreenCss=document.createElement('style');runFullscreenCss.id='mt-run-full-map';runFullscreenCss.textContent="\n#mt-run-overlay[data-view=\"run\"]{height:100dvh;overflow:hidden}\n#mt-run-overlay[data-view=\"run\"] .run-shell{height:100%;min-height:0;padding-bottom:calc(12px + env(safe-area-inset-bottom));display:flex;flex-direction:column;overflow:hidden}\n#mt-run-overlay[data-view=\"run\"] .run-bar{padding-top:10px;padding-bottom:1px;flex:none}\n#mt-run-overlay[data-view=\"run\"] .run-time{font-size:clamp(40px,12vw,59px);margin:3px auto 0;flex:none}\n#mt-run-overlay[data-view=\"run\"] .run-time-label{flex:none}\n#mt-run-overlay[data-view=\"run\"] .run-stats{flex:none;padding:9px 12px 10px}\n#mt-run-overlay[data-view=\"run\"] .run-map-box{\n flex:1 1 auto;min-height:190px;height:auto;max-height:none;\n margin:0 9px 10px;border:1px solid #30482a;border-radius:14px;\n}\n#mt-run-overlay[data-view=\"run\"] .run-actions{flex:none;margin:1px 10px 3px;gap:12px}\n#mt-run-overlay[data-view=\"run\"] .run-actions button{min-height:54px;border-radius:14px}\n#mt-run-overlay[data-view=\"run\"] .run-note{margin:3px 12px 5px;flex:none;font-size:10px}\n#mt-run-overlay[data-view=\"run\"] .run-privacy{display:none!important}\n#mt-run-overlay[data-view=\"run\"] #mt-run-map{background:#d9e5db}\n#mt-run-overlay[data-view=\"run\"] .run-map-empty{background:radial-gradient(circle,#1f321e,#0e180d 70%)}\n#mt-run-overlay[data-view=\"run\"] .run-location-dot{background:#1689fd!important;border:3px solid #f7ffff!important;box-shadow:0 0 0 8px #1689fd40,0 0 11px #1689fd66!important}\n#mt-run-overlay[data-view=\"replay\"] .run-location-dot{background:#a6ff00}\n#mt-run-overlay[data-view=\"summary\"] .run-location-dot{background:#2189fd}\n#mt-run-overlay .leaflet-container{background:#dbe6db!important}\n#mt-run-overlay .leaflet-tile-pane{filter:saturate(.84) contrast(.96)}\n#mt-run-overlay .leaflet-control-zoom{border:1px solid #44663b!important;border-radius:8px!important;overflow:hidden}\n#mt-run-overlay .leaflet-control-zoom a{background:#172517!important;color:#beff77!important;border:0!important}\n@media(max-height:680px){\n #mt-run-overlay[data-view=\"run\"] .run-time{font-size:39px}\n #mt-run-overlay[data-view=\"run\"] .run-stats{padding:5px 10px}\n #mt-run-overlay[data-view=\"run\"] .run-map-box{min-height:130px}\n #mt-run-overlay[data-view=\"run\"] .run-actions button{min-height:46px}\n}\n";document.head.appendChild(runFullscreenCss);
+const runFullscreenCss=document.createElement('style');runFullscreenCss.id='mt-run-full-map';runFullscreenCss.textContent="\n#mt-run-overlay[data-view=\"run\"]{height:100dvh;overflow:hidden}\n#mt-run-overlay[data-view=\"run\"] .run-shell{height:100%;min-height:0;padding-bottom:calc(12px + env(safe-area-inset-bottom));display:flex;flex-direction:column;overflow:hidden}\n#mt-run-overlay[data-view=\"run\"] .run-bar{padding-top:10px;padding-bottom:1px;flex:none}\n#mt-run-overlay[data-view=\"run\"] .run-time{font-size:clamp(40px,12vw,59px);margin:3px auto 0;flex:none}\n#mt-run-overlay[data-view=\"run\"] .run-time-label{flex:none}\n#mt-run-overlay[data-view=\"run\"] .run-stats{flex:none;padding:9px 12px 10px}\n#mt-run-overlay[data-view=\"run\"] .run-map-box{\n flex:1 1 auto;min-height:190px;height:auto;max-height:none;\n margin:0 9px 10px;border:1px solid #30482a;border-radius:14px;\n}\n#mt-run-overlay[data-view=\"run\"] .run-actions{flex:none;margin:1px 10px 3px;gap:12px}\n#mt-run-overlay[data-view=\"run\"] .run-actions button{min-height:54px;border-radius:14px}\n#mt-run-overlay[data-view=\"run\"] .run-note{margin:3px 12px 5px;flex:none;font-size:10px}\n#mt-run-overlay[data-view=\"run\"] .run-privacy{display:none!important}\n#mt-run-overlay[data-view=\"run\"] #mt-run-map{background:#d9e5db}\n#mt-run-overlay[data-view=\"run\"] .run-map-empty{background:radial-gradient(circle,#1f321e,#0e180d 70%)}\n#mt-run-overlay[data-view=\"run\"] .run-location-dot{background:#1689fd!important;border:3px solid #f7ffff!important;box-shadow:0 0 0 8px #1689fd40,0 0 11px #1689fd66!important}\n#mt-run-overlay[data-view=\"replay\"] .run-location-dot{background:#a6ff00}\n#mt-run-overlay[data-view=\"summary\"] .run-location-dot{background:#2189fd}\n#mt-run-overlay .leaflet-container{background:#dbe6db!important}\n#mt-run-overlay .leaflet-tile-pane{filter:none!important}\n#mt-run-overlay .leaflet-control-zoom{border:1px solid #44663b!important;border-radius:8px!important;overflow:hidden}\n#mt-run-overlay .leaflet-control-zoom a{background:#172517!important;color:#beff77!important;border:0!important}\n@media(max-height:680px){\n #mt-run-overlay[data-view=\"run\"] .run-time{font-size:39px}\n #mt-run-overlay[data-view=\"run\"] .run-stats{padding:5px 10px}\n #mt-run-overlay[data-view=\"run\"] .run-map-box{min-height:130px}\n #mt-run-overlay[data-view=\"run\"] .run-actions button{min-height:46px}\n}\n";document.head.appendChild(runFullscreenCss);
+const countdownCss=document.createElement('style');countdownCss.id='mt-run-countdown-css';countdownCss.textContent="\n#mt-run-overlay .mt-run-start-mask{position:fixed;inset:0;z-index:2400;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;text-align:center;background:#051006ee;backdrop-filter:blur(7px);color:#efffe9}\n#mt-run-overlay .mt-run-countdown-number{font-size:clamp(90px,31vw,150px);font-weight:1000;color:#acff15;line-height:1;filter:drop-shadow(0 0 23px #a6ff00a5);font-variant-numeric:tabular-nums}\n#mt-run-overlay .mt-run-start-mask strong{letter-spacing:2px;font-size:20px}\n#mt-run-overlay .mt-run-start-mask span{font-size:12px;color:#bbd9af}\n#mt-run-overlay .mt-run-start-mask button{border:1px solid #567b3d;color:#dcffd5;background:#263a23;border-radius:12px;margin:10px auto;padding:11px 28px;font-weight:800}\n";document.head.appendChild(countdownCss);
 const overlay=document.createElement('section');overlay.id='mt-run-overlay';overlay.setAttribute('role','dialog');overlay.setAttribute('aria-label','Modo Corrida');overlay.hidden=true;document.body.appendChild(overlay);
 const screen=$('screen');
 if(screen){let timer=null;new MutationObserver(()=>{if(timer)clearTimeout(timer);timer=setTimeout(()=>{decorateHome()},80)}).observe(screen,{childList:true,subtree:false})}
@@ -273,5 +328,5 @@ window.addEventListener('pagehide',()=>{if(opened&&state.active)promptNative('st
 setInterval(()=>{if(!document.hidden){decorateHome();if(opened){update()}}},1000);
 setInterval(()=>{if(!document.hidden&&opened){poll()}},2500);
 poll();decorateHome();
-window.MTRunning={open,close,state:()=>state,isOpen:()=>opened,back:()=>{if(!opened)return false;if(view==='replay'){stopReplay();openHistory();return true}if(view!=='run'){view='run';render();return true}close();return true}};
+window.MTRunning={open,close,state:()=>state,isOpen:()=>opened,back:()=>{if(!opened)return false;if(countdownLayer){cancelCountdown();return true}if(view==='replay'){stopReplay();openHistory();return true}if(view!=='run'){view='run';render();return true}close();return true}};
 })();
