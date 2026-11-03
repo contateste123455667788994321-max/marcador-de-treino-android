@@ -84,11 +84,11 @@ public final class RunTrackingService extends Service implements LocationListene
         try{
             boolean requested=false;
             if(manager.isProviderEnabled(LocationManager.GPS_PROVIDER)){
-                manager.requestLocationUpdates(LocationManager.GPS_PROVIDER,1200,2f,this,Looper.getMainLooper());
+                manager.requestLocationUpdates(LocationManager.GPS_PROVIDER,900,1.5f,this,Looper.getMainLooper());
                 requested=true;
             }
             if(manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)){
-                manager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER,2800,4f,this,Looper.getMainLooper());
+                manager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER,2200,3f,this,Looper.getMainLooper());
                 requested=true;
             }
             listening=requested;

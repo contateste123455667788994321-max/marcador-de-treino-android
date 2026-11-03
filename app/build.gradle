@@ -6,8 +6,8 @@ android {
         applicationId 'br.com.marcadordetreino.app'
         minSdk 26
         targetSdk 35
-        versionCode 17
-        versionName '1.9.3'
+        versionCode 18
+        versionName '1.9.4'
     }
     // APKs públicos são assinados apenas quando os secrets estão presentes no GitHub.
     // Nunca coloque a chave privada ou as senhas neste repositório.
