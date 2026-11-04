@@ -2,6 +2,9 @@ package br.com.marcadordetreino.app;
 
 import android.Manifest;
 import android.app.Activity;
+import android.app.DownloadManager;
+import android.database.Cursor;
+import android.os.Environment;
 import android.app.AlertDialog;
 import android.content.*;
 import android.content.pm.PackageManager;
@@ -35,6 +38,13 @@ public final class MainActivity extends Activity {
     private boolean startAfterPermission;
     private boolean onboardingScheduled;
     private ValueCallback<Uri[]> webFileChooser;
+    private final Handler apkHandler=new Handler(Looper.getMainLooper());
+    private long apkDownloadId=-1L;
+    private Uri apkReadyUri=null;
+    private boolean apkPermissionPending=false;
+    private final Runnable apkDownloadPolling=new Runnable(){
+        @Override public void run(){pollApkDownload();}
+    };
 
     @Override public void onCreate(Bundle b){
         super.onCreate(b);
@@ -135,6 +145,17 @@ public final class MainActivity extends Activity {
                     else if("start".equals(action))requestStart();
                     else if("stop".equals(action))stopService();
                     else if("requestNotifications".equals(action))requestNotifications();
+                    else if(action.startsWith("downloadApk:")){
+                        String url=action.substring("downloadApk:".length());
+                        if(officialApkUrl(url)){
+                            web.post(()->startApkDownload(url));
+                            answer="started";
+                        }else answer="invalid-url";
+                    }
+                    else if("installApk".equals(action)){
+                        if(apkReadyUri!=null){web.post(this::installApk);answer="ready";}
+                        else answer="not-ready";
+                    }
                     else if(action.startsWith("setGoal:"))steps.goal(Integer.parseInt(action.substring(8)));
                     else if(action.startsWith("setWeight:"))steps.weight(Double.parseDouble(action.substring(10)));
                 }catch(Exception ex){answer="error";}
@@ -388,6 +409,108 @@ public final class MainActivity extends Activity {
         }
         updateBrowser();
     }
+
+    /** Only accept official release URLs, never arbitrary APK addresses from web content. */
+    private boolean officialApkUrl(String url){
+        try{
+            Uri uri=Uri.parse(url);
+            String path=uri.getPath();
+            return "https".equals(uri.getScheme())&&"github.com".equals(uri.getHost())
+              &&path!=null&&path.startsWith("/contateste123455667788994321-max/marcador-de-treino-android/releases/download/")
+              &&path.endsWith(".apk")&&url.length()<700;
+        }catch(Exception e){return false;}
+    }
+
+    private void apkProgress(String phase,int percent,String message){
+        if(web==null)return;
+        try{
+            String event=new JSONObject().put("phase",phase).put("percent",percent).put("message",message).toString();
+            web.post(()->web.evaluateJavascript(
+              "window.MTNativeUpdateProgress&&window.MTNativeUpdateProgress("+JSONObject.quote(event)+")",null));
+        }catch(Exception ignored){}
+    }
+
+    private void startApkDownload(String url){
+        if(apkDownloadId>0){apkProgress("downloading",-1,"O download já está em andamento.");return;}
+        if(!officialApkUrl(url)){apkProgress("error",0,"Endereço de atualização inválido.");return;}
+        try{
+            DownloadManager dm=(DownloadManager)getSystemService(Context.DOWNLOAD_SERVICE);
+            if(dm==null)throw new IllegalStateException("Serviço de downloads indisponível");
+            DownloadManager.Request request=new DownloadManager.Request(Uri.parse(url));
+            request.setTitle("Gold Trainer - atualização");
+            request.setDescription("Atualização oficial do aplicativo");
+            request.setMimeType("application/vnd.android.package-archive");
+            request.setAllowedOverMetered(true);
+            request.setAllowedOverRoaming(false);
+            request.setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED);
+            request.setDestinationInExternalFilesDir(this,Environment.DIRECTORY_DOWNLOADS,
+                "Gold_Trainer_Atualizacao_"+System.currentTimeMillis()+".apk");
+            apkReadyUri=null;
+            apkDownloadId=dm.enqueue(request);
+            apkHandler.removeCallbacks(apkDownloadPolling);
+            apkProgress("downloading",0,"Baixando atualização no Gold Trainer...");
+            apkHandler.postDelayed(apkDownloadPolling,750);
+        }catch(Exception e){
+            apkDownloadId=-1L;
+            android.util.Log.w("GoldTrainer","Falha no download",e);
+            apkProgress("error",0,"Não foi possível baixar agora. Confira a conexão.");
+        }
+    }
+
+    private void pollApkDownload(){
+        if(apkDownloadId<=0)return;
+        DownloadManager dm=(DownloadManager)getSystemService(Context.DOWNLOAD_SERVICE);
+        if(dm==null){apkDownloadId=-1L;apkProgress("error",0,"Serviço de downloads indisponível.");return;}
+        try(Cursor cursor=dm.query(new DownloadManager.Query().setFilterById(apkDownloadId))){
+            if(cursor==null||!cursor.moveToFirst()){
+                apkDownloadId=-1L;apkProgress("error",0,"Não foi possível encontrar o download.");return;
+            }
+            int status=cursor.getInt(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_STATUS));
+            if(status==DownloadManager.STATUS_SUCCESSFUL){
+                apkReadyUri=dm.getUriForDownloadedFile(apkDownloadId);
+                apkDownloadId=-1L;
+                if(apkReadyUri==null){apkProgress("error",0,"Arquivo não encontrado após o download.");return;}
+                apkProgress("ready",100,"Download concluído. Toque em Instalar.");
+                return;
+            }
+            if(status==DownloadManager.STATUS_FAILED){
+                apkDownloadId=-1L;apkProgress("error",0,"Download interrompido. Tente novamente.");return;
+            }
+            long total=cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_TOTAL_SIZE_BYTES));
+            long done=cursor.getLong(cursor.getColumnIndexOrThrow(DownloadManager.COLUMN_BYTES_DOWNLOADED_SO_FAR));
+            int pct=total>0?(int)Math.min(99,(done*100L)/total):-1;
+            apkProgress("downloading",pct,status==DownloadManager.STATUS_PAUSED?"Aguardando a conexão...":"Baixando atualização...");
+        }catch(Exception e){
+            android.util.Log.w("GoldTrainer","Progresso do download",e);
+            apkDownloadId=-1L;apkProgress("error",0,"Erro ao acompanhar o download.");
+            return;
+        }
+        apkHandler.postDelayed(apkDownloadPolling,850);
+    }
+
+    private void installApk(){
+        if(apkReadyUri==null){apkProgress("error",0,"Baixe a atualização antes de instalar.");return;}
+        try{
+            if(Build.VERSION.SDK_INT>=Build.VERSION_CODES.O&&!getPackageManager().canRequestPackageInstalls()){
+                apkPermissionPending=true;
+                apkProgress("permission",100,"Autorize instalar apps desta fonte e volte ao Gold Trainer.");
+                Intent settings=new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                    Uri.parse("package:"+getPackageName()));
+                startActivity(settings);
+                return;
+            }
+            apkPermissionPending=false;
+            Intent install=new Intent(Intent.ACTION_VIEW);
+            install.setDataAndType(apkReadyUri,"application/vnd.android.package-archive");
+            install.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK|Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(install);
+            apkProgress("installer",100,"Confirme a instalação na tela do Android.");
+        }catch(Exception e){
+            android.util.Log.w("GoldTrainer","Falha ao iniciar instalador",e);
+            apkProgress("error",100,"Não foi possível abrir a instalação. Confira as permissões.");
+        }
+    }
+
     private void installBridge(){
         String js="(function(){window.AndroidSteps={"+
             "getState:function(){return prompt('mt-native:getState','')},"+
@@ -404,7 +527,19 @@ public final class MainActivity extends Activity {
         final String data=steps.json(available);
         web.post(()->web.evaluateJavascript("window.MTStepsNativeUpdate&&window.MTStepsNativeUpdate("+JSONObject.quote(data)+")",null));
     }
-    @Override protected void onResume(){super.onResume();if(web!=null){updateBrowser();updateMusicBrowser();}}
+    @Override protected void onResume(){
+        super.onResume();
+        if(web!=null){updateBrowser();updateMusicBrowser();}
+        if(apkPermissionPending&&apkReadyUri!=null&&Build.VERSION.SDK_INT>=Build.VERSION_CODES.O
+            &&getPackageManager().canRequestPackageInstalls()){
+            apkPermissionPending=false;
+            apkHandler.postDelayed(this::installApk,400);
+        }
+    }
+    @Override protected void onDestroy(){
+        apkHandler.removeCallbacks(apkDownloadPolling);
+        super.onDestroy();
+    }
     private long lastHomeBackMs=0L;
     @Override public void onBackPressed(){
         if(web==null){super.onBackPressed();return;}
