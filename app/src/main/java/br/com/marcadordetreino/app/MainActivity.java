@@ -95,6 +95,10 @@ public final class MainActivity extends Activity {
                     try{
                         if("state".equals(cmd))response=runState();
                         else if("history".equals(cmd))response=running.historyJson();
+                        else if(cmd.startsWith("delete:")){
+                            long startWall=Long.parseLong(cmd.substring("delete:".length()));
+                            response=new JSONObject().put("deleted",running.deleteRun(startWall)).toString();
+                        }
                         else if(cmd.startsWith("import:")){org.json.JSONObject backup=new org.json.JSONObject(cmd.substring(7));response=new org.json.JSONObject().put("imported",running.importRun(backup)).toString();}
                         else if("start".equals(cmd)){startRunWithPermission();response=runState();}
                         else if("locate".equals(cmd)){requestRunPreview();response=runState();}

@@ -21,7 +21,7 @@ const data=localStorage.getItem('mt-workout');let count=0;
 try{const arr=JSON.parse(data||'[]');if(Array.isArray(arr))count=arr.length}catch{}
 const el=document.createElement('section');el.className='native-home-action';el.id='mt-home-android-action';
 el.innerHTML='<small>FOCO • FORÇA • EVOLUÇÃO</small><h2>Treino de hoje '+dumbbellIcon()+'</h2><p>'+(count?count+' exercícios prontos para treinar':'Escolha seus exercícios e comece')+'</p><button>'+ (count?'▶ Iniciar treino':'＋ Montar meu treino')+'</button>';
-progress.insertAdjacentElement('afterend',el);
+(document.querySelector('.steps-home')||progress).insertAdjacentElement('afterend',el);
 el.querySelector('button').onclick=()=>{
 if(count){document.querySelector('[data-nav="workout"]')?.click();setTimeout(()=>document.querySelector('[data-action="start"]')?.click(),130)}
 else document.querySelector('[data-go="exercises"]')?.click();

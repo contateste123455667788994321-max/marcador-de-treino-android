@@ -18,6 +18,7 @@ const style=document.createElement('style');style.id='mt-android-run-css';style.
 let state={active:false,running:false,durationMs:0,distanceMeters:0,calories:0,paceSecKm:0,route:[],gpsFix:false,gpsEnabled:false,permissionGranted:false};
 let history={history:[],bestDistance:0,bestDuration:0,bestPace:0};
 let view='run',opened=false,lastFinished=null,elapsedBase=0,lastElapsedTick=Date.now();
+let selectingHistory=false,selectedHistory=new Set(),deletingHistory=false;
 let leaflet=null,map=null,routeLine=null,ghostLine=null,positionMarker=null,mapUnavailable=false,mapLoading=false;
 let mapBaseLayer=null,mapVectorLayer=null;
 let drawnRouteCount=0,markerFrame=0,lastMarkerPoint=null;
@@ -104,7 +105,7 @@ function allRuns(){
  return [...list.values()].sort((a,b)=>Number(b.startWall)-Number(a.startWall));
 }
 async function openHistory(){
- readHistory();view='history';render();
+ readHistory();selectingHistory=false;selectedHistory.clear();view='history';render();
  const cloud=window.MTCloudRuns;
  if(cloud?.status?.().loggedIn){
    cloudLoading=true;const note=$('mt-run-cloud-loading');if(note)note.textContent='Atualizando histórico da nuvem...';
@@ -156,6 +157,33 @@ function renderReplayUI(){
  const speed=$('mt-replay-speed');if(speed)speed.textContent=replaySpeed+'×';
 }
 
+async function deleteSelectedRuns(){
+ if(deletingHistory||!selectedHistory.size)return;
+ const targets=allRuns().filter(r=>selectedHistory.has(String(r.startWall)));
+ if(!targets.length){selectedHistory.clear();render();return}
+ const anyCloud=targets.some(r=>r.cloudOnly||r.backedUp);
+ if(!confirm('Excluir '+targets.length+' corrida(s) selecionada(s)?'+(anyCloud?' As corridas com backup também serão apagadas da nuvem.':'')+' Esta ação não pode ser desfeita.'))return;
+ deletingHistory=true;
+ const button=$('mt-run-delete-selected');if(button){button.disabled=true;button.textContent='Excluindo...'}
+ let deleted=0,errors=0;
+ const cloud=window.MTCloudRuns;
+ for(const r of targets){
+   try{
+     if(r.cloudOnly||r.backedUp){
+       if(!cloud?.status?.().loggedIn||!cloud.remove)throw Error('Entre na sua conta para excluir da nuvem');
+       await cloud.remove(r.startWall);
+     }
+     if(!r.cloudOnly){
+       const response=promptNative('delete:'+String(r.startWall));
+       if(!response?.deleted)throw Error('Não foi possível apagar o registro local');
+     }
+     deleted++;selectedHistory.delete(String(r.startWall));
+   }catch(error){errors++;console.warn('Erro ao excluir corrida',error)}
+ }
+ deletingHistory=false;
+ readHistory();if(view==='history')render();
+ if(errors)alert(deleted+' corrida(s) excluída(s). Não foi possível excluir '+errors+' corrida(s); confira a conexão e tente novamente.');
+}
 function historyMarkup(){
  const records=allRuns();
  const bestDistance=Math.max(0,...records.map(x=>Number(x.distanceMeters)||0));
@@ -166,11 +194,17 @@ function historyMarkup(){
  '<div class="run-best-grid"><div class="run-best"><small>Maior distância</small><b>'+distanceLabel(bestDistance)+' km</b></div><div class="run-best"><small>Maior duração</small><b>'+clockShort(bestDuration)+'</b></div>'+
  '<div class="run-best"><small>Melhor ritmo</small><b>'+paceLabel(Number.isFinite(bestPace)?bestPace:0)+' /km</b></div><div class="run-best"><small>Corridas concluídas</small><b>'+records.length+'</b></div></div></div>'+
  '<div class="run-history-cloud-row"><h3 class="run-h3">Histórico de corridas</h3><button id="mt-run-cloud-open" aria-label="Gerenciar backup das corridas">☁ '+(clouds?.opted?'Nuvem ativa':'Backup')+'</button></div>'+
+ '<div class="run-history-manager"><button type="button" id="mt-run-select-toggle">'+(selectingHistory?'Cancelar seleção':'Selecionar corridas')+'</button>'+
+ (selectingHistory?'<button type="button" id="mt-run-delete-selected" disabled>Excluir selecionadas (0)</button>':'')+'</div>'+
  '<p class="run-note" id="mt-run-cloud-loading">'+(cloudLoading?'Atualizando histórico da nuvem...':clouds?.loggedIn?'Toque em uma corrida para assistir ao trajeto.':'Salvo neste celular. Ative a nuvem para recuperar em outro.')+'</p>'+
  '<div class="run-history">'+(records.length?records.slice(0,100).map(r=>{
  const when=r.endedAt?new Date(Number(r.endedAt)).toLocaleDateString('pt-BR'):'Corrida';
  const source=r.cloudOnly?' ☁':r.backedUp?' ✓':'';
- return '<button class="run-history-row run-history-tap" data-replay-run="'+Number(r.startWall)+'" aria-label="Rever corrida de '+when+'"><div><strong>'+when+source+'</strong><small>'+clockShort(r.durationMs||0)+' • '+Math.round(r.calories||0)+' kcal</small></div><span>'+distanceLabel(r.distanceMeters||0)+' km<br>'+paceLabel(r.paceSecKm||0)+' min/km<br>▶ Rever rota</span></button>';
+ const id=Number(r.startWall);
+ const description='<div><strong>'+when+source+'</strong><small>'+clockShort(r.durationMs||0)+' • '+Math.round(r.calories||0)+' kcal</small></div><span>'+distanceLabel(r.distanceMeters||0)+' km<br>'+paceLabel(r.paceSecKm||0)+' min/km'+(selectingHistory?'':'<br>▶ Rever rota')+'</span>';
+ return selectingHistory?
+ '<label class="run-history-row run-history-select-row"><input type="checkbox" data-select-run="'+id+'" '+(selectedHistory.has(String(id))?'checked':'')+' aria-label="Selecionar corrida de '+when+'">'+description+'</label>':
+ '<button class="run-history-row run-history-tap" data-replay-run="'+id+'" aria-label="Rever corrida de '+when+'">'+description+'</button>';
  }).join(''):'<p class="run-note">Nenhuma corrida registrada ainda.</p>')+'</div>';
 }
 function mapBox(){return '<div class="run-map-box"><div id="mt-run-map"></div><div class="run-map-empty" id="mt-run-map-empty">'+svg('map',44)+'<strong>Aguardando localização</strong><small>Ative o GPS e permita o acesso para desenhar sua rota.</small></div><div class="run-gps"><span class="gps-dot" id="mt-run-gps-dot"></span><span id="mt-run-gps-text">GPS aguardando</span></div></div>'}
@@ -183,7 +217,7 @@ function content(){
  const summary=view==='summary'&&lastFinished?'<div class="run-summary-card"><h2>Corrida concluída! 💚</h2><p>Bom trabalho! Veja seu resultado abaixo.</p><div class="run-best-grid"><div class="run-best"><small>Distância</small><b>'+distanceLabel(lastFinished.distanceMeters||0)+' km</b></div><div class="run-best"><small>Tempo</small><b>'+clockShort(lastFinished.durationMs||0)+'</b></div><div class="run-best"><small>Ritmo médio</small><b>'+paceLabel(lastFinished.paceSecKm||0)+' /km</b></div><div class="run-best"><small>Calorias estimadas</small><b>'+Math.round(lastFinished.calories||0)+' kcal</b></div></div></div>':'';
  const replaySummary=view==='replay'&&replayRun?'<div class="run-summary-card"><h2>Replay da sua corrida</h2><p>O ponto verde percorre a rota do começo ao fim.</p><div class="run-best-grid"><div class="run-best"><small>Distância</small><b>'+distanceLabel(replayRun.distanceMeters)+' km</b></div><div class="run-best"><small>Tempo real</small><b>'+clockShort(replayRun.durationMs)+'</b></div><div class="run-best"><small>Ritmo</small><b>'+paceLabel(replayRun.paceSecKm)+' /km</b></div><div class="run-best"><small>Calorias estimadas</small><b>'+Math.round(replayRun.calories||0)+' kcal</b></div></div></div>':'';
  const replayControls=view==='replay'?'<div class="run-replay-controls"><div class="run-replay-row"><strong>▶ Replay acelerado</strong><span id="mt-replay-time">0:00</span></div><input id="mt-replay-progress" type="range" min="0" max="1000" value="0" aria-label="Posição do replay"><div class="run-replay-row"><button id="mt-replay-restart">↺ Reiniciar</button><button id="mt-replay-toggle">'+svg('play')+' Reproduzir replay</button><button id="mt-replay-speed">1×</button></div></div>':'';
- const historySection=(view==='history'||view==='summary')?historyMarkup():'';
+ const historySection=view==='history'?historyMarkup():view==='summary'?'<button type="button" class="run-history-entry" id="mt-run-history-open">'+svg('clock',22)+'<span>Histórico de corridas<small>Ver corridas salvas e gerenciar registros</small></span>'+svg('chevron',19)+'</button>':'';
  return '<div class="run-shell"><div class="run-bar"><button class="run-close" id="mt-run-close" aria-label="Voltar">'+svg('back',23)+'</button><strong>◢ MODO CORRIDA</strong><button class="run-close" id="mt-run-history-toggle" aria-label="Histórico">'+svg('clock',21)+'</button></div>'+
  '<div class="run-time" id="mt-run-time">'+msClock(state.durationMs||0)+'</div><div class="run-time-label">TEMPO DE CORRIDA</div>'+
  '<div class="run-stats"><div class="run-stat"><strong id="mt-run-distance">'+distanceLabel(state.distanceMeters)+' </strong><small>KM</small></div><div class="run-stat"><strong id="mt-run-pace">'+paceLabel(state.paceSecKm)+'</strong><small>RITMO (MIN/KM)</small></div><div class="run-stat"><strong id="mt-run-calories">'+Math.round(state.calories||0)+'</strong><small>KCAL</small></div></div>'+
@@ -255,6 +289,13 @@ function attach(){
  const pause=$('mt-run-pause');if(pause)pause.onclick=()=>{const command=state.running?'pause':'resume';const result=promptNative(command);if(result)state=result;poll();render()};
  const again=$('mt-run-new');if(again)again.onclick=()=>{stopReplay();lastFinished=null;if(view==='replay'){openHistory()}else{view='run';render()}};
  const cloud=$('mt-run-cloud-open');if(cloud)cloud.onclick=()=>window.MTCloudRuns?.show?.();
+ const historyOpen=$('mt-run-history-open');if(historyOpen)historyOpen.onclick=openHistory;
+ const selectionToggle=$('mt-run-select-toggle');if(selectionToggle)selectionToggle.onclick=()=>{selectingHistory=!selectingHistory;selectedHistory.clear();render()};
+ const deleteSelected=$('mt-run-delete-selected');if(deleteSelected)deleteSelected.onclick=deleteSelectedRuns;
+ document.querySelectorAll('[data-select-run]').forEach(input=>input.onchange=()=>{
+   if(input.checked)selectedHistory.add(input.dataset.selectRun);else selectedHistory.delete(input.dataset.selectRun);
+   const button=$('mt-run-delete-selected');if(button){button.disabled=selectedHistory.size===0||deletingHistory;button.textContent='Excluir selecionadas ('+selectedHistory.size+')'}
+ });
  document.querySelectorAll('[data-replay-run]').forEach(button=>button.onclick=()=>openRecordedRun(button.dataset.replayRun));
  const retry=$('mt-replay-restart');if(retry)retry.onclick=()=>{stopReplay();replayProgress=0;drawReplay();startReplay()};
  const toggle=$('mt-replay-toggle');if(toggle)toggle.onclick=toggleReplay;
@@ -441,9 +482,27 @@ function decorateHome(){
  if($('mt-run-home-card'))return;
  const card=document.createElement('button');card.id='mt-run-home-card';card.setAttribute('type','button');
  card.innerHTML='<span class="run-home-icon">'+svg('runner',30)+'</span><span class="run-home-info"><strong>Modo Corrida</strong><small>Registre sua corrida em tempo real com GPS</small></span><span class="run-arrow">'+svg('chevron',23)+'</span>';
- steps.insertAdjacentElement('afterend',card);
+ const progress=document.querySelector('.progress-home');
+ (progress||steps).insertAdjacentElement('afterend',card);
  card.onclick=()=>{poll();open('run')};
 }
+const historyManagerStyle=document.createElement('style');
+historyManagerStyle.id='mt-run-history-manager-style';
+historyManagerStyle.textContent=`
+#mt-run-overlay .run-history-entry{display:flex;align-items:center;gap:12px;width:calc(100% - 24px);margin:12px;padding:17px 14px;border-radius:16px;border:1px solid #597c3e;background:linear-gradient(135deg,#20391a,#101b11);color:#eaffda;text-align:left;box-shadow:0 5px 20px #0007}
+#mt-run-overlay .run-history-entry svg{flex-shrink:0;color:#adff39}
+#mt-run-overlay .run-history-entry span{display:flex;flex-direction:column;flex:1;font-weight:900;font-size:15px;gap:5px}
+#mt-run-overlay .run-history-entry small{font-size:11px;color:#b9caaa;font-weight:500}
+#mt-run-overlay .run-history-manager{display:flex;gap:9px;margin:8px 13px;flex-wrap:wrap}
+#mt-run-overlay .run-history-manager button{flex:1;min-width:125px;min-height:42px;border:1px solid #56763e;border-radius:11px;background:#1c3019;color:#d9ffc7;font-size:12px;font-weight:850}
+#mt-run-overlay .run-history-manager #mt-run-delete-selected{background:#451d1d;border-color:#915154;color:#ffe0dc}
+#mt-run-overlay .run-history-manager button:disabled{opacity:.46}
+#mt-run-overlay .run-history-select-row{display:flex;cursor:pointer;text-align:left}
+#mt-run-overlay .run-history-select-row input{width:21px;height:21px;flex:0 0 21px;margin:0 6px 0 0;accent-color:#a6ff00;align-self:center}
+#mt-run-overlay .run-history-row{gap:11px;min-height:70px}
+#mt-run-overlay .run-history-row>div{flex:1;min-width:0}
+`;
+document.head.appendChild(historyManagerStyle);
 const replayStyle=document.createElement('style');replayStyle.id='mt-android-replay-css';replayStyle.textContent="\n#mt-run-overlay .run-history-cloud-row{display:flex;align-items:center;justify-content:space-between;gap:5px;margin:5px 14px}\n#mt-run-overlay .run-history-cloud-row .run-h3{margin:10px 0 5px}\n#mt-run-overlay .run-history-cloud-row button{padding:8px 10px;border-radius:11px;border:1px solid #547d34;color:#c6ff97;background:#1b2c19;font-size:11px;font-weight:850}\n#mt-run-overlay .run-history-tap{width:100%;background:none;text-align:left;color:#f4ffef;border-left:0;border-right:0;border-top:0;border-radius:0;cursor:pointer}\n#mt-run-overlay .run-history-tap:active{background:#273c1e}\n#mt-run-overlay .run-history-tap span{color:#a6ff00!important}\n#mt-run-overlay .run-replay-controls{border:1px solid #496b30;background:linear-gradient(130deg,#1d3219,#101b10);padding:13px;border-radius:15px;margin:0 12px 12px}\n#mt-run-overlay .run-replay-row{display:flex;justify-content:space-between;align-items:center;gap:8px;margin:3px 0 8px}\n#mt-run-overlay .run-replay-row strong{font-size:12px;color:#d6ffc2}\n#mt-run-overlay .run-replay-row>span{font-size:11px;color:#bed6b4}\n#mt-run-overlay .run-replay-row button{display:flex;align-items:center;justify-content:center;gap:5px;min-height:37px;padding:9px;border:1px solid #4b683c;background:#1f351d;color:#d0ffb8;border-radius:10px;font-size:11px;font-weight:850}\n#mt-run-overlay #mt-replay-toggle{background:#a6ff00;border-color:#a6ff00;color:#18260d;flex:1.5}\n#mt-run-overlay #mt-replay-speed{min-width:49px}\n#mt-run-overlay #mt-replay-progress{width:100%;accent-color:#a6ff00;height:25px;margin:1px 0 8px;background:transparent}\n";document.head.appendChild(replayStyle);
 const runFullscreenCss=document.createElement('style');runFullscreenCss.id='mt-run-full-map';runFullscreenCss.textContent="\n#mt-run-overlay[data-view=\"run\"]{height:100dvh;overflow:hidden}\n#mt-run-overlay[data-view=\"run\"] .run-shell{height:100%;min-height:0;padding-bottom:calc(12px + env(safe-area-inset-bottom));display:flex;flex-direction:column;overflow:hidden}\n#mt-run-overlay[data-view=\"run\"] .run-bar{padding-top:10px;padding-bottom:1px;flex:none}\n#mt-run-overlay[data-view=\"run\"] .run-time{font-size:clamp(40px,12vw,59px);margin:3px auto 0;flex:none}\n#mt-run-overlay[data-view=\"run\"] .run-time-label{flex:none}\n#mt-run-overlay[data-view=\"run\"] .run-stats{flex:none;padding:9px 12px 10px}\n#mt-run-overlay[data-view=\"run\"] .run-map-box{\n flex:1 1 auto;min-height:190px;height:auto;max-height:none;\n margin:0 9px 10px;border:1px solid #30482a;border-radius:14px;\n}\n#mt-run-overlay[data-view=\"run\"] .run-actions{flex:none;margin:1px 10px 3px;gap:12px}\n#mt-run-overlay[data-view=\"run\"] .run-actions button{min-height:54px;border-radius:14px}\n#mt-run-overlay[data-view=\"run\"] .run-note{margin:3px 12px 5px;flex:none;font-size:10px}\n#mt-run-overlay[data-view=\"run\"] .run-privacy{display:none!important}\n#mt-run-overlay[data-view=\"run\"] #mt-run-map{background:#d9e5db}\n#mt-run-overlay[data-view=\"run\"] .run-map-empty{background:radial-gradient(circle,#1f321e,#0e180d 70%)}\n#mt-run-overlay[data-view=\"run\"] .run-location-dot{background:#1689fd!important;border:3px solid #f7ffff!important;box-shadow:0 0 0 8px #1689fd40,0 0 11px #1689fd66!important}\n#mt-run-overlay[data-view=\"replay\"] .run-location-dot{background:#a6ff00}\n#mt-run-overlay[data-view=\"summary\"] .run-location-dot{background:#2189fd}\n#mt-run-overlay .leaflet-container{background:#dbe6db!important}\n#mt-run-overlay .leaflet-tile-pane{filter:none!important}\n#mt-run-overlay .leaflet-control-zoom{border:1px solid #44663b!important;border-radius:8px!important;overflow:hidden}\n#mt-run-overlay .leaflet-control-zoom a{background:#172517!important;color:#beff77!important;border:0!important}\n@media(max-height:680px){\n #mt-run-overlay[data-view=\"run\"] .run-time{font-size:39px}\n #mt-run-overlay[data-view=\"run\"] .run-stats{padding:5px 10px}\n #mt-run-overlay[data-view=\"run\"] .run-map-box{min-height:130px}\n #mt-run-overlay[data-view=\"run\"] .run-actions button{min-height:46px}\n}\n";document.head.appendChild(runFullscreenCss);
 const smoothMapCss=document.createElement('style');smoothMapCss.id='mt-run-map-smooth-style';smoothMapCss.textContent=`

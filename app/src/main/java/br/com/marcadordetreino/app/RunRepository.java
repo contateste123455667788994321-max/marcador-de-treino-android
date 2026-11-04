@@ -163,6 +163,18 @@ final class RunRepository {
         pref.edit().putString("history",result.toString()).commit();
         return 1;
     }
+    /** Remove somente uma corrida concluída, sem tocar na sessão ativa. */
+    synchronized boolean deleteRun(long startWall){
+        if(startWall<=0)return false;
+        JSONArray entries=history(),kept=new JSONArray();
+        boolean removed=false;
+        for(int i=0;i<entries.length();i++){
+            JSONObject item=entries.optJSONObject(i);
+            if(item!=null&&item.optLong("startWall",0)==startWall){removed=true;continue;}
+            kept.put(entries.opt(i));
+        }
+        return removed&&pref.edit().putString("history",kept.toString()).commit();
+    }
     synchronized String historyJson(){
         JSONArray hist=history();
         JSONObject result=new JSONObject();
