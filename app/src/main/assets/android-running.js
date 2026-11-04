@@ -282,7 +282,7 @@ function showFinishDialog(){
  };
 }
 function attach(){
- $('mt-run-close').onclick=()=>{if(view==='replay'){stopReplay();view='history';readHistory();render()}else close()};
+ $('mt-run-close').onclick=()=>{if(view==='replay'){stopReplay();view='history';readHistory();render()}else if(state.active){view='run';render();showFinishDialog()}else close()};
  $('mt-run-history-toggle').onclick=()=>{stopReplay();if(view==='history'){view='run';render()}else openHistory()};
  const start=$('mt-run-start');if(start)start.onclick=beginRunAfterCountdown;
  const finish=$('mt-run-finish');if(finish)finish.onclick=showFinishDialog;
@@ -523,5 +523,5 @@ window.addEventListener('pagehide',()=>{if(opened&&state.active)promptNative('st
 setInterval(()=>{if(!document.hidden){decorateHome();if(opened){update()}}},1000);
 setInterval(()=>{if(!document.hidden&&opened){poll()}},1500);
 poll();decorateHome();
-window.MTRunning={open,close,state:()=>state,isOpen:()=>opened,back:()=>{if(!opened)return false;if($('mt-run-finish-dialog')){hideFinishDialog();return true}if(countdownLayer){cancelCountdown();return true}if(view==='replay'){stopReplay();openHistory();return true}if(view!=='run'){view='run';render();return true}close();return true}};
+window.MTRunning={open,close,state:()=>state,isOpen:()=>opened,back:()=>{if(!opened)return false;if($('mt-run-finish-dialog')){hideFinishDialog();return true}if(countdownLayer){cancelCountdown();return true}if(view==='replay'){stopReplay();openHistory();return true}if(view!=='run'){view='run';render();if(state.active)showFinishDialog();return true}if(state.active){showFinishDialog();return true}close();return true}};
 })();

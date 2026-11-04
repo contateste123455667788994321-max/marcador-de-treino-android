@@ -26,7 +26,7 @@ public final class RunTrackingService extends Service implements LocationListene
     private final Runnable ticker=new Runnable(){
         @Override public void run(){
             if(data!=null&&data.isActive())updateNotice();
-            if(handler!=null)handler.postDelayed(this,12000);
+            if(handler!=null)handler.postDelayed(this,5000);
         }
     };
     @Override public void onCreate(){
@@ -40,7 +40,7 @@ public final class RunTrackingService extends Service implements LocationListene
             notificationManager.createNotificationChannel(channel);
         }
         handler=new Handler(Looper.getMainLooper());
-        handler.postDelayed(ticker,12000);
+        handler.postDelayed(ticker,5000);
     }
     private boolean permitted(){
         return checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)==PackageManager.PERMISSION_GRANTED;
@@ -100,7 +100,7 @@ public final class RunTrackingService extends Service implements LocationListene
     }
     @Override public void onLocationChanged(Location location){
         if(!data.isRunning())return;
-        if(data.location(location)&&SystemClock.elapsedRealtime()-lastNotice>12000)updateNotice();
+        if(data.location(location)&&SystemClock.elapsedRealtime()-lastNotice>5000)updateNotice();
     }
     @Override public void onProviderEnabled(String provider){if(data.isRunning())startListening();}
     @Override public void onProviderDisabled(String provider){stopListening();if(data.isRunning())startListening();}
@@ -115,24 +115,26 @@ public final class RunTrackingService extends Service implements LocationListene
     private Notification notification(){
         boolean running=data.isRunning();
         String raw=data.json(true,permitted());
-        double dist=0;long elapsed=0;
+        double dist=0;long elapsed=0;double calories=0;
         try{
             org.json.JSONObject s=new org.json.JSONObject(raw);
             dist=s.optDouble("distanceMeters",0);
             elapsed=s.optLong("durationMs",0);
+            calories=s.optDouble("calories",0);
         }catch(Exception ignored){}
-        String content=String.format(java.util.Locale.forLanguageTag("pt-BR"),"%.2f km • %02d:%02d • %s",
-            dist/1000,elapsed/60000,(elapsed/1000)%60,running?"GPS registrando":"Pausada");
+        String content=String.format(java.util.Locale.forLanguageTag("pt-BR"),"%02d:%02d • %.2f km • %d kcal",
+            elapsed/60000,(elapsed/1000)%60,dist/1000,Math.round(calories));
         Notification.Builder b=new Notification.Builder(this,CHANNEL)
             .setContentTitle(running?"Corrida em andamento":"Corrida pausada")
             .setContentText(content).setContentIntent(openApp()).setSmallIcon(R.drawable.app_icon)
             .setOngoing(true).setOnlyAlertOnce(true).setColor(Color.rgb(166,255,0))
             .setVisibility(Notification.VISIBILITY_PUBLIC)
+            .setSubText(running?"GPS ativo • Gold Trainer":"Pausada • Gold Trainer")
+            .setStyle(new Notification.BigTextStyle().bigText(content+"\n"+
+                (running?"Localização e distância registradas com a tela bloqueada.":"Toque em Retomar para continuar a corrida.")))
             .addAction(new Notification.Action.Builder(
                 running?android.R.drawable.ic_media_pause:android.R.drawable.ic_media_play,
-                running?"Pausar":"Retomar",action(running?PAUSE:RESUME,171)).build())
-            .addAction(new Notification.Action.Builder(
-                android.R.drawable.ic_menu_close_clear_cancel,"Finalizar",action(FINISH,172)).build());
+                running?"Pausar":"Continuar",action(running?PAUSE:RESUME,171)).build());
         return b.build();
     }
     private void startOrUpdateForeground(){
