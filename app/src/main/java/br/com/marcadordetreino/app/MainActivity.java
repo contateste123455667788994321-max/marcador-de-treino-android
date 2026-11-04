@@ -153,7 +153,7 @@ public final class MainActivity extends Activity {
                         }else answer="invalid-url";
                     }
                     else if("installApk".equals(action)){
-                        if(apkReadyUri!=null){web.post(this::installApk);answer="ready";}
+                        if(apkReadyUri!=null){web.post(()->MainActivity.this.installApk());answer="ready";}
                         else answer="not-ready";
                     }
                     else if(action.startsWith("setGoal:"))steps.goal(Integer.parseInt(action.substring(8)));
