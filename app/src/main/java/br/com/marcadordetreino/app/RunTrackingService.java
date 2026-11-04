@@ -49,6 +49,7 @@ public final class RunTrackingService extends Service implements LocationListene
         String action=intent==null?START:intent.getAction();
         if(FINISH.equals(action)){
             data.finish();
+            RunSosUpload.deactivate(this);
             stopListening();
             stopForeground(STOP_FOREGROUND_REMOVE);
             stopSelf();
@@ -100,6 +101,7 @@ public final class RunTrackingService extends Service implements LocationListene
     }
     @Override public void onLocationChanged(Location location){
         if(!data.isRunning())return;
+        RunSosUpload.maybeSend(this,location);
         if(data.location(location)&&SystemClock.elapsedRealtime()-lastNotice>5000)updateNotice();
     }
     @Override public void onProviderEnabled(String provider){if(data.isRunning())startListening();}

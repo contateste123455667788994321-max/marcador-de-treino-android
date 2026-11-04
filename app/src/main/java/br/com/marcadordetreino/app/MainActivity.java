@@ -112,6 +112,11 @@ public final class MainActivity extends Activity {
                         else if(cmd.startsWith("import:")){org.json.JSONObject backup=new org.json.JSONObject(cmd.substring(7));response=new org.json.JSONObject().put("imported",running.importRun(backup)).toString();}
                         else if("start".equals(cmd)){startRunWithPermission();response=runState();}
                         else if("locate".equals(cmd)){requestRunPreview();response=runState();}
+                        else if(cmd.startsWith("sosStart:")){
+                            JSONObject payload=new JSONObject(cmd.substring("sosStart:".length()));
+                            response=RunSosUpload.activate(MainActivity.this,payload)?"ready":"invalid";
+                        }
+                        else if("sosStop".equals(cmd)){RunSosUpload.deactivate(MainActivity.this);response="stopped";}
                         else if("pause".equals(cmd)){running.pause();sendRunService(RunTrackingService.PAUSE);response=runState();}
                         else if("resume".equals(cmd)){resumeRunWithPermission();response=runState();}
                         else if("finish".equals(cmd)){response=running.finish();sendRunService(RunTrackingService.FINISH);}
@@ -278,6 +283,7 @@ public final class MainActivity extends Activity {
         }
         running.start(steps.weight());
         sendRunService(RunTrackingService.START);
+        requestNotifications();
     }
     private void resumeRunWithPermission(){
         if(!running.isActive())return;
